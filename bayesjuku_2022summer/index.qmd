@@ -3,7 +3,7 @@ title: "標準ベイズ統計学 -9. 線形回帰-"
 subtitle: "ベイズ統計学勉強会 夏`22<br/>安藤 正和"
 format:
   revealjs:
-    theme: [moon, custom.scss]
+    theme: [beige, custom.scss]
     width: 1280
     height: 720
     slide-number: true
