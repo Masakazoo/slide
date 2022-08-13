@@ -21,6 +21,15 @@ execute:
 
 # はじめに
 
+```{r}
+#| echo: false
+# setwd("bayesjuku_2022summer")
+#### Functions for variable selection
+source("source/regression_gprior.R")
+source("source/backselect.R")
+
+```
+
 ## 自己紹介
 
 ::: columns
@@ -35,94 +44,260 @@ execute:
 :::
 :::
 
-# [前回](https://eitsupi.github.io/tokyorslide/tokyor_97/)のあらすじ
+ 
+
+# content
+
+1.  線形回帰モデル
+2.  回帰モデルにおけるベイズ推定
+3.  モデル選択
+
+# 1. 線形回帰モデル
+
+## 酸素摂取量(Kuehl, 2000)
+
+::: {.panel-tabset}
+
+### description
+
+-   日常的に運動しない健康な男性12人を対象に、2種類の運動療法が酸素摂取量に与える影響を調べる
+-   12人のランダムに2種類の運動療法に割り当てる
+    1.  ランニング
+    2.  エアロビクス
+-   従属変数: 12週間の運動前後の酸素摂取量(リットル/分)の変化(差分)
+-   独立変数: 運動療法, 年齢
+
+⇨所与の年齢と運動療法のもとで酸素摂取量の条件付き分布を推定したい
+
+### data
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+
+x1<-c(0,0,0,0,0,0,1,1,1,1,1,1)
+x2<-c(23,22,22,25,27,20,31,23,27,28,22,24)
+y<-c(-0.87,-10.74,-3.27,-1.97,7.50,-7.25,17.05,4.96,10.40,11.05,0.26,2.51)
+
+par(mfrow=c(1,1))
+plot(y~x2,pch=16,xlab="年齢",ylab="最大酸素摂取量の変化", 
+     col=c("black","gray")[x1+1])
+legend(27,0,legend=c("エアロビクス","ランニング"),pch=c(16,16),col=c("gray","black"))
+```
+
+
+:::
+
+## 酸素摂取量(Kuehl, 2000)
+
+- 年齢と運動療法の組み合わせごとに集団の平均と分散を推定する？
+  -   例: 22歳のランニンググループとエアロビクスグループで推定
+<br>
+<br>
+- ✖️参加者が一人しかいない年齢もあり
+  - →集団の分散に関する情報は不十分
+- ✖️データが存在しない年齢と運動療法の組み合わせも無数にある
+
+
+## 解決策: **線形回帰モデル**(linear regression model)を使う
+
+- 条件付き分布$p(y|x)$が$x$の関数として滑らかに変化すると仮定
+
+- 得られた$x$のデータから他の値の情報を得る
+
+- 条件付き平均$E[Y|x]$はパラメータに関して線形であると定める
+
+$$
+\int yp(y|\boldsymbol{x})dy = E[Y|\boldsymbol{x}]=\beta_1x_1+...+\beta_px_p=\boldsymbol{\beta}^T\boldsymbol{x}
+$$
 
 ------------------------------------------------------------------------
 
-巨大なデータを扱うときにはCSVではなくParquetを使うと便利です。
+## 今回のモデルの仮定
 
-![](arrow_slide.jpg){fig-align="center" alt="前回発表スライド"}
+-   $p(y|\boldsymbol{x})$は年齢と酸素摂取量は線形関係
+- 運動療法のグループごとに異なる線形関係を想定(異なる関係でもいい)
 
-## 今日の話
+$$
+Y_i = \beta_1x_{i,1}+\beta_2x_{i,2}+\beta_3x_{i,3}+\beta_4x_{i,4}+\epsilon_i\tag{9.1}
+$$
 
--   `dplyr`バックエンドの速度比較をやってみた。
--   `dtplyr`の日本語の情報が少ないので共有したい。
-    -   [今こそ、data.tableを学ぼう！](https://speakerdeck.com/s_uryu/datatable1130)(2020-08-01)もご確認ください。
 
-::: columns
+:::: {.columns .smaller}
+::: {.column width="50%" }
+-   $x_{i,1}$: 1(全ての参加者$i$で共通(切片))
+-   $x_{i,2}$: 参加者$i$の運動療法
+    -   0: 参加者$i$がランニングを行う場合
+    -   1: 参加者$i$がエアロビクスを行う場合
+
+:::
 ::: {.column width="50%"}
-### 対象かも
 
--   ✅`dplyr`派
--   ✅`dbplyr`や`dtplyr`を試す機会のなかった方
+-   $x_{i,3}$: 参加者$i$の年齢
+-   $x_{i,4}$: $x_{i,2}\times x_{i,3}$ (交互作用)
+
 :::
+::::
 
-::: {.column width="50%"}
-### 対象外かも
+## 今回のモデルの仮定
 
--   ✅`data.table`派
-:::
-:::
+今回のモデルでの$Y$の条件付き期待値は、$x_{i,2}$のとりうる値によって次のようになる
 
-# 結論
+$$
+E[Y|\boldsymbol{x}] = \beta_1+\beta_3\times年齢(x_2=0の場合)\\
+E[Y|\boldsymbol{x}] = (\beta_1+\beta_2)+(\beta_3+\beta_4)\times年齢(x_2=1の場合)
+$$ 
 
-Q. `data.table`って速いの？
+年齢との線形関係は運動療法のグループ間で切片と傾きの違いがあることが仮定
 
-. . .
+## 酸素摂取量に対する四つのモデルの回帰直線
 
-A. `dtplyr`ですぐに試せるのでやってみましょう！\
-（`tidyverse`パッケージインストール時にインストールされてます！）
+::: {.panel-tabset}
 
-# `dtplyr`, `arrow`, `duckdb`
-
-## `dplyr`バックエンド達
-
-`dplyr`で記述したデータ操作を`dplyr`外で実行するパッケージ。
-
--   tydyverse[^1]
-    -   [`multidplyr`](https://multidplyr.tidyverse.org/) : Rの計算を分散
-    -   [`dtplyr`](https://dtplyr.tidyverse.org/) : [`data.table`](https://rdatatable.gitlab.io/data.table/)のクエリに変換して計算実行
-    -   [`dbplyr`](https://dbplyr.tidyverse.org/) : [`duckdb`](https://duckdb.org/docs/api/r)などのDBにSQLを送信して計算実行
--   その他
-    -   [`sparklyr`](https://spark.rstudio.com/) : SparkにSQLを送信して計算実行
-    -   [`arrow`](https://arrow.apache.org/docs/r/) : Arrow C++ライブラリの計算エンジンAceroで計算実行
-
-[^1]: [dplyr backends: multidplyr 0.1.0, dtplyr 1.1.0, dbplyr 2.1.0](https://www.tidyverse.org/blog/2021/02/dplyr-backends/)
-
-## どれが速いか気になる！
-
--   `dtplyr`, `arrow`, `dbplyr`+`duckdb`は同じような目的（ローカル実行で集約計算などを速くしたい）で使用されます。
-    -   [前回の発表](https://eitsupi.github.io/tokyorslide/tokyor_97/)で`arrow`と共に`duckdb`を紹介したところ、\
-        「`duckdb`の使いどころが分からない」との感想をいただいた。
--   有名な[H2Oベンチマーク](https://h2oai.github.io/db-benchmark/)は最後の実行が2021年7月、 まだ`arrow`は`dplyr::summarise`を実行できなかった頃の結果。
-
-# ベンチマーク
-
-## 対象パッケージ
-
+### ($\beta_3=0,\ \beta_4=0$)
 ```{r}
-#| echo: true
-
-library(dplyr)
-library(dtplyr)
-library(arrow)
-library(duckdb)
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],ylab="最大酸素摂取量の変化",xlab="年齢")
+abline(h=mean(y[x1==0]),col="black") 
+abline(h=mean(y[x1==1]),col="gray")
+mtext(side=3,expression(paste(beta[3]==0,"  ",beta[4]==0)) )
 ```
 
-. . .
 
-これらで、以下のようなグループ毎の集約計算を行います。
-
-```{r}
-#| echo: true
-
-mtcars |>
-  dplyr::group_by(cyl) |>
-  dplyr::summarise(sum = sum(wt, na.rm = TRUE), .groups = "drop")
-```
-
-## 環境 {.smaller}
+### ($\beta_2=0,\ \beta_4=0$)
 
 ```{r}
-sessionInfo()
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],ylab="最大酸素摂取量の変化",xlab="年齢")
+abline(lm(y~x2),col="black")
+abline(lm((y+.5)~x2),col="gray")
+mtext(side=3,expression(paste(beta[2]==0,"  ",beta[4]==0)) )
 ```
+
+
+### ($\beta_4=0$)
+
+```{r}
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],
+     ylab="最大酸素摂取量の変化",xlab="年齢" )
+fit<-lm( y~x1+x2)
+abline(a=fit$coef[1],b=fit$coef[3],col="black")
+abline(a=fit$coef[1]+fit$coef[2],b=fit$coef[3],col="gray")
+mtext(side=3,expression(beta[4]==0)) 
+```
+
+
+### ($\beta_2\neq0,\ \beta_4\neq0$)
+
+
+```{r}
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],
+     ylab="最大酸素摂取量の変化",xlab="年齢")
+abline(lm(y[x1==0]~x2[x1==0]),col="black")
+abline(lm(y[x1==1]~x2[x1==1]),col="gray")
+```
+
+:::
+
+## 正規線形回帰モデル(normal linear regression model)
+
+-   $E[Y|\boldsymbol{x}]$が線形である
+-   平均まわりでの標本のばらつきが
+-   独立かつ同一の正規分布に従う(i.i.d., p.30参照)
+
+$$
+\epsilon_1,...,\epsilon_n\sim \mathrm{i.i.d. normal}(0,\sigma^2)\\
+Y_i=\boldsymbol{\beta}^T\boldsymbol{x}_i+\epsilon_i
+$$
+
+→$\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2$で条件づけたもとで観測データ$y_1,...y_n$の同時分布を完全に特定する 
+
+## 正規線形回帰モデル(normal linear regression model)
+
+同時確率密度は式(9.2)で書ける
+
+$$
+p(y_1,...,y_n|\boldsymbol{x}_1,...,\boldsymbol{x}_n,\boldsymbol{\beta},\sigma^2)\tag{9.2}\\
+$$
+
+$$
+=\Pi_{i=1}^n p(y_i|\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2)\\
+=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\}\tag{9.3}
+$$
+
+## 正規線形回帰モデル(normal linear regression model)
+
+この同時確率密度は多変量正規分布を用いて書ける 
+
+$$
+\{\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2\}\sim \mathrm{multivariate\ normal}(\boldsymbol{X\beta},\sigma^2\mathrm{\boldsymbol{I}})
+$$
+
+-   $\boldsymbol{y} = (y_1,...,y_n)^T$
+-   $\boldsymbol{X}$ : $n\times p$行列. 第$i$行目が$x_i$
+-   $\mathrm{\boldsymbol{I}}$ : $n\times n$単位行列
+
+## 正規線形回帰モデル(normal linear regression model)
+
+$\boldsymbol{X\beta}$は以下で示せる 
+
+$$
+\boldsymbol{X\beta}＝\begin{pmatrix}x_1\rightarrow \\ x_2 \rightarrow\\ \vdots \\ x_n \rightarrow\end{pmatrix}
+\begin{pmatrix}\beta_1 \\ \beta_2\\ \vdots \\ \beta_p\end{pmatrix}
+=\begin{pmatrix}\beta_1x_{1,1}+\dots\beta_px_{1,p} \\  \vdots \\ \beta_px_{n,1}\dots\beta_px_{n,p}\end{pmatrix}
+=\begin{pmatrix}\mathrm{E}[Y_1|\boldsymbol{\beta},\boldsymbol{x}_1]\\  \vdots \\ \mathrm{E}[Y_n|\boldsymbol{\beta},\boldsymbol{x}_n]\end{pmatrix}
+$$
+
+------------------------------------------------------------------------
+
+$$
+(2\pi\sigma^2)^{-n/2}\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\}\tag{9.3}
+$$
+
+- 式(9.3)の密度は残差$(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)$を通じて$\boldsymbol{\beta}$に依存している
+
+- 観測されたデータを所与とすると、残差平方和$\mathrm{SSR(\boldsymbol{\beta})}=\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2$を最小にすることで尤度が最大になる
+
+- **残差平方和を最小にするには微分する**
+
+## $\hat{\boldsymbol{\beta}}_{ols}$を求める
+
+::: {.panel-tabset}
+
+### 1. $\mathrm{SSR}(\boldsymbol{\beta})$を行列表記する
+
+$$
+\mathrm{SSR(\boldsymbol{\beta})}=\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2=(\boldsymbol{y}-\boldsymbol{X\beta})^T(\boldsymbol{y}-\boldsymbol{X\beta})\\
+=\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+{\beta}^T\boldsymbol{X}^T{X}\boldsymbol{\beta}
+$$
+
+### 2. 導関数を求める
+
+$$
+\frac{d}{d\boldsymbol{\beta}}\mathrm{SSR}(\boldsymbol{\beta})=\frac{d}{d\boldsymbol{\beta}}(\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+{\beta}^T\boldsymbol{X}^T{X}\boldsymbol{\beta})\\
+=-2\boldsymbol{X}^T\boldsymbol{y}+-2\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}
+$$
+
+- $g(z)=az$の導関数は$a$であり、$g(z)=bz^2$の導関数は$2ab$である
+
+
+### 3. 導関数が0になる$\boldsymbol{\beta}$を求める
+
+$$
+\frac{d}{d\boldsymbol{\beta}}\mathrm{SSR}(\boldsymbol{\beta})=0\Leftrightarrow2\boldsymbol{X}^T\boldsymbol{y}+-2\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}=0\\
+\Leftrightarrow \boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}=\boldsymbol{X}^T\boldsymbol{y}\\
+\Leftrightarrow \boldsymbol{\beta}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}
+$$
+
+:::
+
+## $\hat{\boldsymbol{\beta}}_{ols}$ : 最小二乗推定量
+
+
+
+- $\hat{\boldsymbol{\beta}}_{ols}$という値は、$\boldsymbol{\beta}$の「最小二乗」(ordinary least squares, OLS)推定量と呼ばれる。
+  - $\hat{\boldsymbol{\beta}}_{ols}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$
+
+-   この値は、$(\boldsymbol{X}^T\boldsymbol{X})^{-1}$が存在するなら一意に定まる
