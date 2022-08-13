@@ -5,24 +5,21 @@ project:
     - "/index.qmd"
   resources:
     - image
-    - tokyor_91lt
-    - tokyor_93lt
+    - bayesjuku_2022summer
     - japanr2021lt
 
 website:
-  title: TokyoR用スライド置き場
-  description: TokyoR用の資料を置くサイト
+  title: Slides list
+  description: Slides created with quarto
   navbar:
-    background: primary
+    background: secondary
     left:
       - href: index.qmd
         text: Home
     right:
-      - icon: twitter
-        href: https://twitter.com/eitsupi
       - icon: github
-        href: https://github.com/eitsupi
-  repo-url: https://github.com/eitsupi/tokyorslide
+        href: https://github.com/Masakazoo
+  repo-url: https://github.com/Masakazoo/slide
   repo-actions: source
 
 format:
