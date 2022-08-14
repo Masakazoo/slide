@@ -53,16 +53,6 @@ dev.off()
 
 #### OLS estimation 
 
-sigma2 <- 10^2
--(1/(2*sigma2)*10)
--(1/(2*sigma2)*100)
-
--(1/(2*sigma2)*10) > -(1/(2*sigma2)*100)
-exp(1)
-exp(2)
-
-pi=3.14
-(2*pi*sigma2)^(-n/2)
 
 n<-length(y)
 X<-cbind(rep(1,n),x1,x2,x1*x2)
@@ -71,9 +61,37 @@ beta.ols<- solve(t(X)%*%X)%*%t(X)%*%y
 
 SSR_beta.ols <- t(y)%*%y -(2*t(beta.ols)%*%t(X)%*%y) +(t(beta.ols)%*%t(X)%*%X%*%beta.ols)
 
-SSR_beta.ols/(n-p)
+sigma.ols <- SSR_beta.ols/(n-p)
+
+beta.ols/sigma.ols
 
 print(integrate(dnorm, mean=150, sd=15, lower= 120, upper= 180), digits = 3)
+
+
+#### 事後分布からモンテカルロ標本を生成するコード
+yX.o2uptake <- 
+  structure(c(-0.87, -10.74, -3.27, -1.97, 7.5, -7.25, 17.05, 4.96, 
+            10.4, 11.05, 0.26, 2.51, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+            0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 23, 22, 22, 25, 27, 20, 31, 
+            23, 27, 28, 22, 24, 0, 0, 0, 0, 0, 0, 31, 23, 27, 28, 22, 24),
+            .Dim = c(12L, 5L),
+            .Dimnames = list(NULL, c("uptake", "intercept", "aerobic", 
+                                                   "age", "aerobic.age")))
+y <- yX.o2uptake[,1]; X <- yX.o2uptake[,-1] # データ
+g <- length(y); nu0 <- 1; s20 <- 8.54 # 事前分布パラメータ
+S <- 1000 #サンプリングサイズ
+
+
+n <- dim(X)[1]; p <- dim(X)[2]
+Hg <- (g/(g+1)) * X %*% solve(t(X)%*%X) %*% t(X)
+SSRg <- t(y) %*% (diag(1, nrow=n) -  Hg) %*% y #残差平方和
+s2 <- 1 / rgamma(S, (nu0+n)/2, (nu0*s20+SSRg)/2) #sigma
+Vb <- g * solve(t(X)%*%X) / (g+1) #分h散
+Eb <- Vb %*% t(X) %*% y #平均
+E <- matrix(rnorm(S*p,0,sqrt(s2)), S, p)
+beta <- t( t(E%*%chol(Vb))+ c(Eb)) #beta
+
+round( apply(beta,2,mean), 3)
 
 #### Bayesian estimation via MCMC
 n<-length(y)
@@ -81,7 +99,7 @@ X<-cbind(rep(1,n),x1,x2,x1*x2)
 p<-dim(X)[2]
 
 fit.ls<-lm(y~-1+ X)
-beta.0<-rep(0,p) ; Sigma.0<-diag(c(150,30,6,5)^2,p)
+beta.0<-rep(0,p) ; Sigma.0<-diag(c(150,30,6,5)^2,p) #p173 事前情報からの事前分布
 nu.0<-1 ; sigma2.0<- 15^2
 
 beta.0<-fit.ls$coef
@@ -134,6 +152,7 @@ round( apply(beta.post,2,mean), 3)
 
 
 #### g-prior
+source("bayesjuku_2022summer/source/regression_gprior.R")
 tmp<-lm.gprior(y,X )
 beta.post<-tmp$beta
 beta.ols<-lm(y~-1+X)$coef
@@ -193,7 +212,7 @@ qboxplot<-function(x,at=0,width=.5,probs=c(.025,.25,.5,.75,.975))
 
 
 #### Figure 9.4
-pdf("fig9_4.pdf",family="Times",height=3.5,width=7)
+
 par(mfrow=c(1,1),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
 plot(range(X[,3]),range(y),type="n",xlab="age",
      #   ylab="expected difference in change score")
@@ -207,7 +226,7 @@ dev.off()
 
 
 #### Diabetes example
-load("diabetes.RData")
+load("source/diabetes.RData")
 yf<-diabetes$y
 yf<-(yf-mean(yf))/sd(yf)
 
@@ -227,7 +246,6 @@ X<-Xf[i.tr,]; X.te<-Xf[i.te,]
 
 
 #### Figure 9.5
-pdf("fig9_5.pdf",family="Times",height=1.75,width=5)
 par(mfrow=c(1,3),mar=c(2.75,2.75,.5,.5),mgp=c(1.5,.5,0))
 olsfit<-lm(y~-1+X)
 y.te.ols<-X.te%*%olsfit$coef
@@ -237,7 +255,7 @@ mean( (y.te-y.te.ols )^2 )
 plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)[ols]))
 
 ## backwards selection
-source("backselect.R")
+source("source/backselect.R")
 
 vars<-bselect.tcrit(y,X,tcrit=1.65)
 bslfit<-lm(y~-1+X[,vars$remain])
@@ -246,13 +264,12 @@ mean( (y.te-y.te.bsl)^2)
 plot(y.te,y.te.bsl,ylim=range( c(y.te.bsl,y.te.ols)),
      xlab=expression(italic(y)[test]),ylab=expression(hat(italic(y))[test]))
 abline(0,1)
-dev.off()
+
 
 
 
 
 #### Figure 9.6 - backwards selection with permuted data
-pdf("fig9_6.pdf",family="Times",height=3.5,width=7)
 par(mfrow=c(1,2),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
 yperm<-sample(y)
 
@@ -276,11 +293,12 @@ dev.off()
 #### Bayesian model selection
 p<-dim(X)[2]
 S<-10000
-source("regression_gprior.R")
+source("source/regression_gprior.R")
 
 ## Don't run it again if you've already run it
-runmcmc<-!any(system("ls",intern=TRUE)=="diabetesBMA.RData")
-if(!runmcmc){ load("diabetesBMA.RData") }
+runmcmc<-!any(dir("source") %in% "diabetesBMA.RData")
+
+if(!runmcmc){ load("source/diabetesBMA.RData") }
 
 if(runmcmc){
   
@@ -310,20 +328,18 @@ if(runmcmc){
       plot(c(1,s),range(Zcp),type="n") ; apply(Zcp,2,lines)
     }
   } 
-  save(BETA,Z,file="diabetesBMA.RData")
+  save(BETA,Z,file="source/diabetesBMA.RData")
 }
 
 
 
 #### Figure 9.7
-pdf("fig9_7.pdf",family="Times",height=1.75,width=5)
-par(mar=c(2.75,2.75,.5,.5),mgp=c(1.7,.7,0))
-
+# par(mar=c(2.75,2.75,.5,.5),mgp=c(1.7,.7,0))
 beta.bma<-apply(BETA,2,mean,na.rm=TRUE)
 y.te.bma<-X.te%*%beta.bma
 mean( (y.te-y.te.bma)^2)
 
-layout( matrix(c(1,1,2),nrow=1,ncol=3) )
+# layout( matrix(c(1,1,2),nrow=1,ncol=3) )
 
 plot(apply(Z,2,mean,na.rm=TRUE),xlab="regressor index",ylab=expression(
   paste( "Pr(",italic(z[j] == 1),"|",italic(y),",X)",sep="")),type="h",lwd=2)
@@ -331,5 +347,5 @@ plot(apply(Z,2,mean,na.rm=TRUE),xlab="regressor index",ylab=expression(
 plot(y.te,y.te.bma,xlab=expression(italic(y)[test]),
      ylab=expression(hat(italic(y))[test])) ; abline(0,1)
 
-dev.off()
+
 
