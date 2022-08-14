@@ -497,7 +497,7 @@ $$
 
 ## 単位情報事前分布(unit information prior)
 
-- 1個の観測地に含まれる情報と同じ量の情報を含む事前分布
+- 1個の観測値に含まれる情報と同じ量の情報を含む事前分布
   - $(\boldsymbol{X}^T\boldsymbol{X})/\sigma^2$: n個の観測値に含まれる情報の量($\hat{\boldsymbol{\beta}}_{ols}$の精度)
   - $(\boldsymbol{X}^T\boldsymbol{X})/(n\sigma^2)$: 1個の観測値に含まれる情報
 - よって、単位情報事前分布では$\sum_0^{-1}=(\boldsymbol{X}^T\boldsymbol{X})/(n\sigma^2)$
@@ -513,21 +513,22 @@ $$
 
 ## 不変原理
 
-- パラメータ推定は説明変数の単位の返還に関して不変であるべき
-- 例: 酸素摂取量を分析するときに用いた年齢($x_{i,3}$)が月齢($\tilde{x}_{i,3}$)で事後分布は変わらないようにする
+- パラメータ推定は説明変数の単位の変換に関して不変であるべき
+- 例: 酸素摂取量を分析するの年齢($x_{i,3}$)が月齢($\tilde{x}_{i,3}$)で事後分布は変わらないようにする
   - 年齢の事後分布と月齢の事後分布は同じはずである
 
+---
 
+不変原理を考える
 
 - 与えられた説明変数$\boldsymbol{X}$について、ある$p\times p$行列$\boldsymbol{H}$があって$\tilde{\boldsymbol{X}}=\boldsymbol{XH}$
 - 不変原理において、$y$と$\boldsymbol{X}$から$\tilde{\boldsymbol{\beta}}$の事後分布をえたとき、$\boldsymbol{\beta}=\boldsymbol{H\tilde{\beta}}$
-- この条件が成立するのは、任意の正の値$k$に対して$\boldsymbol{\beta}_0=0$かつ$\sum_0=k(\boldsymbol{X}^T\boldsymbol{X})^{-1}$となるとき
+- この条件が成立するのは、任意の正の値$k$に対して$\boldsymbol{\beta}_0=0$かつ$\sum_0=k(\boldsymbol{X}^T\boldsymbol{X})^{-1}$
 
 
 
 - $k$の特定の仕方として、代表的なものは誤差の分散$\sigma^2$に関係させて$k=g\sigma^2$とすること
   - これは**g事前分布**(Zellner, 1986)の一種
-  - この後のモデル選択にも用いられる
   
 ## g事前分布
 
@@ -1122,8 +1123,7 @@ $$
 E[Y_i|\boldsymbol{\beta},x_i]=\beta_1x_{i,1}+\beta_2x_{i,2}+\beta_3x_{i,3}+\beta_4x_{i,4}
 $$
 
-- 運動療法の効果の有無は$\beta_2,\beta_4$が0かどうか
-- 前節では、効果はないことが示唆
+- 運動療法の効果の有無は$\beta_2,\beta_4$が0かどうか(前節では、効果はないことが示唆)
 
 
 | $\boldsymbol{z}$ | モデル                                                       | $log\ p(y|\boldsymbol{X},z)$ | $p(z|y,\boldsymbol{X})$ |
