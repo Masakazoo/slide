@@ -41,6 +41,9 @@ source("source/backselect.R")
 -   安藤正和([twitter](https://twitter.com/hirahira2835))
 -   専修大学・大学院(心理学) → LINE株式会社(DS)
     -   LINE Payのデータ分析
+-   社内でもベイズ統計を使う胎動を感じ始めて、改めて勉強
+    -   来週から社内でも標準ベイズ統計学の輪読会が始まる
+-   このスライドは[quarto](https://quarto.org/)で作ってます
 :::
 :::
 
@@ -48,9 +51,14 @@ source("source/backselect.R")
 
 # content
 
-1.  線形回帰モデル
-2.  回帰モデルにおけるベイズ推定
-3.  モデル選択
+1. 線形回帰モデル
+   1. 酸素摂取量データに対する最小二乗推定
+   2. 回帰モデルにおけるベイズ推定
+2. 準共役事前分布
+     1. 規定事前分布と弱情報事前分布
+3. モデル選択
+     1. ベイズ的なモデル比較
+     2. ギブスサンプリングとモデル平均
 
 # 1. 線形回帰モデル
 
@@ -111,7 +119,6 @@ $$
 \int yp(y|\boldsymbol{x})dy = E[Y|\boldsymbol{x}]=\beta_1x_1+...+\beta_px_p=\boldsymbol{\beta}^T\boldsymbol{x}
 $$
 
-------------------------------------------------------------------------
 
 ## 今回のモデルの仮定
 
@@ -204,7 +211,7 @@ abline(lm(y[x1==1]~x2[x1==1]),col="gray")
 ## 正規線形回帰モデル(normal linear regression model)
 
 -   $E[Y|\boldsymbol{x}]$が線形である
--   平均まわりでの標本のばらつきが
+-   平均まわりでの標本のばらつき
 -   独立かつ同一の正規分布に従う(i.i.d., p.30参照)
 
 $$
@@ -224,7 +231,7 @@ $$
 
 $$
 =\Pi_{i=1}^n p(y_i|\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2)\\
-=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\}\tag{9.3}
+=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\right\}\tag{9.3}
 $$
 
 ## 正規線形回帰モデル(normal linear regression model)
@@ -253,7 +260,7 @@ $$
 ------------------------------------------------------------------------
 
 $$
-(2\pi\sigma^2)^{-n/2}\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\}\tag{9.3}
+(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\right\}\tag{9.3}
 $$
 
 - 式(9.3)の密度は残差$(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)$を通じて$\boldsymbol{\beta}$に依存している
@@ -280,7 +287,7 @@ $$
 =-2\boldsymbol{X}^T\boldsymbol{y}+-2\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}
 $$
 
-- $g(z)=az$の導関数は$a$であり、$g(z)=bz^2$の導関数は$2ab$である
+- $g(z)=az$の導関数は$a$であり、$g(z)=bz^2$の導関数は$2bz$である
 
 
 ### 3. 導関数が0になる$\boldsymbol{\beta}$を求める
@@ -389,16 +396,16 @@ $\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2$で条件づけたもとで観測�
 
 $$
 p(y_1,...,y_n|\boldsymbol{x}_1,...,\boldsymbol{x}_n,\boldsymbol{\beta},\sigma^2)\\
-=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\}\tag{9.3}
+=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\right\}\tag{9.3}
 $$
 ---
 
 このデータ密度は、$\boldsymbol{\beta}$の関数として次の様にかける
 $$
 p(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)\propto
-\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n\mathrm{SSR}(\boldsymbol{\beta})\}\\
-=\mathrm{exp}\{-\frac{1}{2\sigma^2}\sum_{i=1}^n
-[\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}]\}
+\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n\mathrm{SSR}(\boldsymbol{\beta})\right\}\\
+=\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n
+[\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}]\right\}
 $$
 
 - 指数の中で$\boldsymbol{\beta}$は$\boldsymbol{y}$と同じような役割をしている
@@ -412,10 +419,10 @@ $$
 $$
 p(\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2)
 \propto p(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)\times p(\boldsymbol{\beta})\\
-\propto \mathrm{exp}\{-\frac{1}{2}(-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}/\sigma^2+\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}/\sigma^2)
--\frac{1}{2}(-2\boldsymbol{\beta}^T\sum_0^{-1}\boldsymbol{\beta}+\boldsymbol{\beta}^T\sum_0^{-1}\boldsymbol{\beta})\}\\
-=\mathrm{exp}\{ \boldsymbol{\beta}^T(\sum_0^{-1}\boldsymbol{\beta}_0+\boldsymbol{X}^T\boldsymbol{y}/\sigma^2) 
--\frac{1}{2}\boldsymbol{\beta}^T(\sum_0^{-1}+\boldsymbol{X}^T\boldsymbol{X})/\sigma^2)\boldsymbol{\beta}\}
+\propto \mathrm{exp}\left\{-\frac{1}{2}(-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}/\sigma^2+\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}/\sigma^2)
+-\frac{1}{2}(-2\boldsymbol{\beta}^T\sum\nolimits_0^{-1}\boldsymbol{\beta}+\boldsymbol{\beta}^T\sum\nolimits_0^{-1}\boldsymbol{\beta})\right\}\\
+=\mathrm{exp}\left\{ \boldsymbol{\beta}^T(\sum\nolimits_0^{-1}\boldsymbol{\beta}_0+\boldsymbol{X}^T\boldsymbol{y}/\sigma^2) 
+-\frac{1}{2}\boldsymbol{\beta}^T(\sum\nolimits_0^{-1}+\boldsymbol{X}^T\boldsymbol{X})/\sigma^2)\boldsymbol{\beta}\right\}
 $$
 
 ---
@@ -423,11 +430,12 @@ $$
 これは、多変量正規分布の密度関数であり、平均と分散は以下で示される
 
 $$
-\mathrm{Var}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]=(\sum_0^{-1}+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2)^{-1}\tag{9.4}
+\mathrm{Var}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]=(\sum\nolimits_0^{-1}+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2)^{-1}\tag{9.4}
 $$
 
 $$
-\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]=(\sum_0^{-1}+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2)^{-1}(\sum_0^{-1}\boldsymbol{\beta}_0+\boldsymbol{X}^T\boldsymbol{y}/\sigma^2)\tag{9.5}
+\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]
+=\left(\sum\nolimits_0^{-1}+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2\right)^{-1}\left(\sum\nolimits_0^{-1}\boldsymbol{\beta}_0+\boldsymbol{X}^T\boldsymbol{y}/\sigma^2\right)\tag{9.5}
 $$
 
 - 精度行列$\sum_0^{-1}$の要素の絶対値が小さいとき、条件付き期待値$\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]$は近似的に最小二乗推定量$(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$に等しい
@@ -569,21 +577,21 @@ $$
 $$
 (\boldsymbol{y}|\boldsymbol{X},\sigma^2)
 =\int(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)(\boldsymbol{\beta}|\boldsymbol{X},\sigma^2)d\boldsymbol{\beta}\\
-=[(2\pi\sigma^2)^{-n/2}\mathrm{exp}(-\frac{1}{2\sigma^2}\boldsymbol{y}^T\boldsymbol{y})]
-\times [(1+g)^{-p/2}\mathrm{exp}(\frac{1}{2}m^TV^{-1}m)]
+=\left[(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left(-\frac{1}{2\sigma^2}\boldsymbol{y}^T\boldsymbol{y}\right)\right]
+\times \left[(1+g)^{-p/2}\mathrm{exp}\left(\frac{1}{2}m^TV^{-1}m\right)\right]
 $$
 
 ---
 
 ここで、指数の項を組み合わせることで
 $$
-(\boldsymbol{y}|\boldsymbol{X},\sigma^2)=(2\pi)^{-2/n}(1+g)^{-p/2}(\sigma^2)^{-n/2}\mathrm{exp}(\frac{1}{2}\mathrm{SSR}_g)
+(\boldsymbol{y}|\boldsymbol{X},\sigma^2)=(2\pi)^{-2/n}(1+g)^{-p/2}(\sigma^2)^{-n/2}\mathrm{exp}\left(\frac{1}{2}\mathrm{SSR}_g\right)
 $$
 
 $$
 \mathrm{SSR}_g
 =\boldsymbol{y}^T\boldsymbol{y}-\sigma^2\boldsymbol{m}^T\boldsymbol{V}^{-1}\boldsymbol{m}
-=\boldsymbol{y}^T(\mathrm{I}-\frac{g}{g+1}\boldsymbol{X}(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T)\boldsymbol{y}
+=\boldsymbol{y}^T\left(\mathrm{I}-\frac{g}{g+1}\boldsymbol{X}(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\right)\boldsymbol{y}
 $$
 
 - $\mathrm{SSR}_g$は、$g\rightarrow\infty$の時に減少して$\mathrm{SSR}_{ols}=\sum(y_i-\boldsymbol{\hat{\beta}}_{ols}x_i)^2$となる
@@ -591,18 +599,18 @@ $$
 
 ---
 
-- $(\boldsymbol{y}|\boldsymbol{X},\sigma^2)$があきらかになったので、事前分布$p(\sigma^2)$をかけることで$p(\sigma^2|\boldsymbol{y},\boldsymbol{X})$は導出される
+- $p(\boldsymbol{y}|\boldsymbol{X},\sigma^2)$があきらかになったので、事前分布$p(\sigma^2)$をかけることで$p(\sigma^2|\boldsymbol{y},\boldsymbol{X})$は導出される
 - $\gamma=1/\sigma^2\sim\mathrm{gamma}(\nu_0/2, \nu_0\sigma_0^2/2)$とおく
   - $p(\sigma^2|\boldsymbol{y},\boldsymbol{X})\propto p(\sigma^2)(\boldsymbol{y}|\boldsymbol{X},\sigma^2)$→$p(\gamma|\boldsymbol{y},\boldsymbol{X})\propto p(\gamma)(\boldsymbol{y}|\boldsymbol{X},\gamma)$
 
 
 $$
 p(\gamma|\boldsymbol{y},\boldsymbol{X})\propto p(\gamma)(\boldsymbol{y}|\boldsymbol{X},\gamma)\\
-\propto \mathrm{dgamma}(\gamma,[\nu_0+n]/2,[\nu_0,\sigma_o^2+\mathrm{SSR}_g]/2)
+\propto \mathrm{dgamma}(\gamma,[\nu_0+n]/2,[\nu_0\sigma_o^2+\mathrm{SSR}_g]/2)
 $$
 
 $$
-\{\sigma^2|\boldsymbol{y},\boldsymbol{X}\}\sim \mathrm{inverse\ gamma}([\nu_0+n]/2,[\nu_0,\sigma_o^2+\mathrm{SSR}_g]/2)
+\{\sigma^2|\boldsymbol{y},\boldsymbol{X}\}\sim \mathrm{inverse\ gamma}([\nu_0+n]/2,[\nu_0\sigma_o^2+\mathrm{SSR}_g]/2)
 $$
 
 ---
@@ -620,7 +628,7 @@ $$
 
 
 1. $1/\sigma^2\sim \mathrm{gamma}([\nu_0+n]/2,[\nu_0,\sigma_o^2+\mathrm{SSR}_g]/2)$
-2. $\boldsymbol{\beta}\sim\mathrm{multivariate\ normal}(\frac{g}{g+1}\boldsymbol{\hat{\beta}}_{ols},\frac{g}{g+1}\sigma^2(\boldsymbol{X}^T\boldsymbol{X})^{-1})$
+2. $\boldsymbol{\beta}\sim\mathrm{multivariate\ normal}\left(\frac{g}{g+1}\boldsymbol{\hat{\beta}}_{ols},\frac{g}{g+1}\sigma^2(\boldsymbol{X}^T\boldsymbol{X})^{-1}\right)$
 
 ```{r}
 #### 事後分布からモンテカルロ標本を生成するコード
@@ -689,7 +697,7 @@ round( apply(beta,2,mean), 3)
 
 ### description
 
-- 不変なg事前分布を$g=n=12,\nu=0=1,\sigma_0~2=\hat{\sigma}_{ols}^2=8.54$とする
+- 不変なg事前分布を$g=n=12,\nu_0=1,\sigma_0^2=\hat{\sigma}_{ols}^2=8.54$とする
 - $\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]$は$\sigma^2$に依存しないので$\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X}]=\frac{g}{g+1}\sigma^2\boldsymbol{\hat{\beta}}_{ols}$
 - 1,000個の独立のモンテカルロ標本を生成
 
@@ -727,19 +735,19 @@ mdt<-function(t,mu,sig,nu){
 par(mfrow=c(1,3),mar=c(2.75,2.75,.5,.5),mgp=c(1.7,.7,0))
 
 x<-seq(-85,130,length=200)
-plot(density(beta.post[,2],adj=2),xlab=expression(beta[2]),main="",ylab="",lwd=2)
+plot(density(beta.post[,2],adj=2),xlab=expression(beta[2]),main="",ylab="",lwd=2,cex.lab=2)
 abline(v=0,col="gray")
 lines(x,mdt(x,0,sqrt(n*s20*iXX[2,2]),nu0 ),col="gray")
 
 x<-seq(-5,5,length=100)
-plot(density(beta.post[,4],adj=2),xlab=expression(beta[4]),main="",ylab="",lwd=2)
+plot(density(beta.post[,4],adj=2),xlab=expression(beta[4]),main="",ylab="",lwd=2,cex.lab=2)
 abline(v=0,col="gray")
 lines(x,mdt(x,0,sqrt(n*s20*iXX[4,4]),nu0 ),col="gray")
 
 
 source("source/hdr2d.R")
 plot.hdr2d( beta.post[,c(2,4)],xlab=expression(beta[2]),
-            ylab=expression(beta[4]))
+            ylab=expression(beta[4]),cex.lab=2)
 abline(h=0,col="gray") ; abline(v=0,col="gray")
 ```
 
@@ -787,7 +795,7 @@ qboxplot<-function(x,at=0,width=.5,probs=c(.025,.25,.5,.75,.975))
 par(mfrow=c(1,1),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
 plot(range(X[,3]),range(y),type="n",xlab="age",
      #   ylab="expected difference in change score")
-     ylab=expression(paste( beta[2] + beta[4],"age",sep="") ) )
+     ylab=expression(paste( beta[2] + beta[4],"age",sep="") ),cex.lab=1.5 )
 for( age  in  1:dim(BX)[2]  ) {
   qboxplot( BX[,age] ,at=age+19 , width=.25) }  
 
@@ -866,6 +874,7 @@ abline(h=0,col="gray")
 ::: {.column}
 
 ```{r}
+#| fig-height: 6
 #| fig-align: center
 #### Diabetes example
 load("source/diabetes.RData")
@@ -892,9 +901,9 @@ par(mfrow=c(1,2),mar=c(2.75,2.75,.5,.5),mgp=c(1.5,.5,0))
 olsfit<-lm(y~-1+X)
 y.te.ols<-X.te%*%olsfit$coef
 plot(y.te,y.te.ols,xlab=expression(italic(y)[test]),
-     ylab=expression(hat(italic(y))[test])) ; abline(0,1)
-print(paste0("平均二乗誤差: ",print(mean( (y.te-y.te.ols )^2 ),digits = 3)))
-plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)[ols]))
+     ylab=expression(hat(italic(y))[test]),cex.lab=1.5) ; abline(0,1)
+print(mean( (y.te-y.te.ols )^2 ),digits = 3)
+plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)[ols]),cex.lab=1.5)
 ```
 
 ::: 
@@ -905,11 +914,11 @@ plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)
 
 - 回帰係数の真の値が0でないという証拠をt統計量から評価する方法がある
   - t統計量は最小二乗推定量を標準偏差でわることで得られる
-  - $t_j=\hat{\beta}_j/[\hat{\sigma}^2(\boldsymbol{X}^T\boldsymbol{X}_{j,j}^{-1})]^{1/2}$
+  - $t_j=\hat{\beta}_j/[\hat{\sigma}^2(\boldsymbol{X}^T\boldsymbol{X})_{j,j}^{-1}]^{1/2}$
 
 1. 推定値$\hat{\boldsymbol{\beta}}_{ols}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$とそのt統計量を得る
-2. もし$j$番目の説明変数について$|t_j|<t_{cutoff}$となるならば
-   1. $|t_j|$が最小となる説明変数の番号を$j_{min}$として、$\boldsymbol{X}$から$j_{min}$列目を取り除く
+2. もし$j$番目の説明変数について$|t_j|<t_{\mathrm{cutoff}}$となるならば
+   1. $|t_j|$が最小となる説明変数の番号を$j_{\mathrm{min}}$として、$\boldsymbol{X}$から$j_{\mathrm{min}}$列目を取り除く
    2. 1に戻る
 3. モデルに残った全ての$j$についてカットオフを上回ったら終了
 
@@ -924,8 +933,8 @@ plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)
 
 - カットオフを1.65に定める
   - p値が0.10に相当
-- 先述した変数減少法で20個(65個中)の変数が残った
-- 図9.5の右が新しいモデルの予測値とテストデータの比較である
+- 先述した変数減少法で20個(64個中)の変数が残った
+- 右図が新しいモデルの予測値とテストデータの比較である
 - 変数をすべて含んだモデルよりはよさそう
   - 平均二乗誤差は0.53
 
@@ -933,15 +942,15 @@ plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)
 ::: {.column}
 
 ```{r}
+#| fig-height: 6
 ## backwards selection
 source("source/backselect.R")
 
 vars<-bselect.tcrit(y,X,tcrit=1.65)
 bslfit<-lm(y~-1+X[,vars$remain])
 y.te.bsl<-X.te[,vars$remain]%*%bslfit$coef
-mean( (y.te-y.te.bsl)^2)
 plot(y.te,y.te.bsl,ylim=range( c(y.te.bsl,y.te.ols)),
-     xlab=expression(italic(y)[test]),ylab=expression(hat(italic(y))[test]))
+     xlab=expression(italic(y)[test]),ylab=expression(hat(italic(y))[test]),cex.lab=1.5)
 abline(0,1)
 ```
 
@@ -977,7 +986,7 @@ par(mfrow=c(1,2),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
 fit.perm<-lm(yperm~-1+X)
 t.perm<-summary(fit.perm)$coef[,3]
 b.perm<-summary(fit.perm)$coef[,1]
-plot(t.perm,type="h",lwd=2,xlab="regressor index",ylab="t-statistic",ylim=c(-4.8,4.8))
+plot(t.perm,type="h",lwd=2,xlab="regressor index",ylab="t-statistic",ylim=c(-4.8,4.8),cex.lab=1.5)
 
 vars.perm<-bselect.tcrit(yperm,X,tcrit=1.65)
 bslfit.perm<-lm(yperm~-1+X[,vars.perm$remain])
@@ -986,7 +995,7 @@ b.bslperm<-b.perm*0
 t.bslperm[vars.perm$remain]<-summary(bslfit.perm)$coef[,3]
 b.bslperm[vars.perm$remain]<-summary(bslfit.perm)$coef[,1]
 plot(t.bslperm,type="h",lwd=2,xlab="regressor index",ylab="t-statistic",
-     ylim=c(-4.8,4.8) )
+     ylim=c(-4.8,4.8),cex.lab=1.5 )
 ```
 
 ::: 
@@ -1007,7 +1016,7 @@ plot(t.bslperm,type="h",lwd=2,xlab="regressor index",ylab="t-statistic",
 
 この時、回帰式は
 $$
-y_i=z_ib_1x_{i,1}+,\dots,+z_pb_px_{i,p}+\epsilon_i
+y_i=z_1b_1x_{i,1}+,\dots,+z_pb_px_{i,p}+\epsilon_i
 $$
 
 ---
@@ -1024,7 +1033,7 @@ $$
 
 
 
-→g事前分布が使えそう
+→**g事前分布が使えそう**
 
 ---
 
@@ -1045,7 +1054,7 @@ $$
 
 - 事後オッズは、事前オッズとベイズファクターの積
 - ベイズファクターは、データに対してモデル$z_a$が$z_b$に比べてどれだけ利するか解釈可能
-- 事後確率$p(y|\boldsymbol{X},z)$を計算する必要がある
+- $p(y|\boldsymbol{X},z)$を計算する必要がある
 
 
 
@@ -1084,7 +1093,7 @@ $$
 
 $$
 p(y|\boldsymbol{X},z,\gamma)\times p(\gamma)\\
-=(2\pi)^{-n/2}(1+g)^{-p_z/2}\times[\gamma^{n/2}e^{-\gamma\mathrm{SSR}_g^z/2}]
+=(2\pi)^{-n/2}(1+g)^{-p_z/2}\times[\gamma^{n/2}e^{-\gamma\mathrm{SSR}_g^z/2}]\\
 \times(\nu_0\sigma_0^2/2)\Gamma(\nu_0/2)^{-1}[\gamma^{\nu_0/2-1}e^{-\gamma\nu_0\sigma_0^2/2}]\tag{9.9}
 $$
 
@@ -1111,8 +1120,8 @@ $$
 任意の二つのモデル$z_a$と$z_b$の比(ベイズファクター)は
 $$
 \frac{p(y|\boldsymbol{X},z_a)}{p(y|\boldsymbol{X},z_b)}
-=(1+n)^{p_{z_b}-p_{z_a}/2}(\frac{s_{z_a}^2}{s_{z_b}^2})^{1/2}
-\times(\frac{s_{z_b}^2+\mathrm{SSR}_g^{z_b}}{s_{z_a}^2+\mathrm{SSR}_g^{z_a}})^{(n+1)/2}
+=(1+n)^{(p_{z_b}-p_{z_a})/2}\left(\frac{s_{z_a}^2}{s_{z_b}^2}\right)^{1/2}
+\times\left(\frac{s_{z_b}^2+\mathrm{SSR}_g^{z_b}}{s_{z_a}^2+\mathrm{SSR}_g^{z_a}}\right)^{(n+1)/2}
 $$
 
 
@@ -1142,7 +1151,7 @@ $$
 
 
 
-- 5つのモデルの中で最も確率が高い者は$z=(1,1,1,0)$
+- 5つのモデルの中で最も確率が高いモデルは$z=(1,1,1,0)$
   - グループで切片が異なるが、傾きへの交互作用はないモデル
 - 年齢を含む三つのモデルの事後確率を足すとほぼ1になる
   - 年齢に関する証拠は強い
@@ -1153,7 +1162,7 @@ $$
 
 ## 9.3.2 ギブスサンプリングとモデル平均
 
-- pこの回帰係数が0かどうか考察するときを考える
+- p個の回帰係数が0かどうか考察するときを考える
   - モデルの数は$2^p$個
   - pが大きいと、それぞれのモデルの周辺確率を計算するのは非現実的
 - 糖尿病データはp=64
@@ -1164,7 +1173,7 @@ $$
 
 ## ギブスサンプリング
 
-- 現在の値$\boldsymbol{z}=(z_1,\dots,z_p)$を所与として、新たな$z_j$の値を$p(z_j|y,\boldsymbol{X},z_{-j})$
+- 現在の値$\boldsymbol{z}=(z_1,\dots,z_p)$を所与として、新たな$z_j$の値を$p(z_j|y,\boldsymbol{X},z_{-j})$から生成
 - 完全条件付確率は$o_j/(1+o_j)$と書ける
 - $o_j$は$z_j$が1となる条件付きオッズ
 
@@ -1184,7 +1193,7 @@ $$
 2. ランダムな順番で$j\in\{1.,\dots,p\}$に対し、$z_j$を$p(z_j|z_{-j},y,\boldsymbol{X})$からの標本で置き換える
 3. $z^{s+1}=z$と定める
 4. $\sigma^{2(s+1)}\sim p(\sigma^2|z^{(s+1)},y,\boldsymbol{X})$を生成する
-5. $\boldsymbol{\beta}^{2(s+1)}\sim p(\boldsymbol{X}|z^{(s+1)},\sigma^{2(s+1)},y,\boldsymbol{X})$を生成する
+5. $\boldsymbol{\beta}^{(s+1)}\sim p(\boldsymbol{\beta}|z^{(s+1)},\sigma^{2(s+1)},y,\boldsymbol{X})$を生成する
 
 
 
@@ -1260,13 +1269,13 @@ if(runmcmc){
 ::: {.column}
 
 ```{r}
-#| fig-width: 12
+#| fig-width: 10
 #| fig-height: 8
 #| fig-align: center
 #### Figure 9.7
 
 plot(apply(Z,2,mean,na.rm=TRUE),xlab="regressor index",ylab=expression(
-  paste( "Pr(",italic(z[j] == 1),"|",italic(y),",X)",sep="")),type="h",lwd=2)
+  paste( "Pr(",italic(z[j] == 1),"|",italic(y),",X)",sep="")),type="h",lwd=2,cex.lab=1.2)
 ```
 
 
@@ -1303,13 +1312,12 @@ print(beta.bma)
 
 ```{r}
 #| fig-width: 12
-#| fig-height: 8
+#| fig-height: 10
 #| fig-align: center
 
 y.te.bma<-X.te%*%beta.bma
-mean( (y.te-y.te.bma)^2)
 plot(y.te,y.te.bma,xlab=expression(italic(y)[test]),
-     ylab=expression(hat(italic(y))[test])) ; abline(0,1)
+     ylab=expression(hat(italic(y))[test]),cex.lab=2) ; abline(0,1)
 ```
 
 :::
@@ -1322,3 +1330,6 @@ plot(y.te,y.te.bma,xlab=expression(italic(y)[test]),
 - 変数減少法: 18個の説明変数が残った
 - $\mathrm{Pr}(z_j=1|\boldsymbol{y,X})=\sum z_l^{(s)}/S$だと全ての説明変数で事後確率は1/2未満
 - 変数減少法より、本来ない効果あると見積もることはない(らしい)
+
+# おしまい
+
