@@ -21,6 +21,15 @@ execute:
 
 # はじめに
 
+```{r}
+#| echo: false
+# setwd("bayesjuku_2022summer")
+#### Functions for variable selection
+source("source/regression_gprior.R")
+source("source/backselect.R")
+
+```
+
 ## 自己紹介
 
 ::: columns
@@ -32,97 +41,1295 @@ execute:
 -   安藤正和([twitter](https://twitter.com/hirahira2835))
 -   専修大学・大学院(心理学) → LINE株式会社(DS)
     -   LINE Payのデータ分析
+-   社内でもベイズ統計を使う胎動を感じ始めて、改めて勉強
+    -   来週から社内でも標準ベイズ統計学の輪読会が始まる
+-   このスライドは[quarto](https://quarto.org/)で作ってます
 :::
 :::
 
-# [前回](https://eitsupi.github.io/tokyorslide/tokyor_97/)のあらすじ
+ 
+
+# content
+
+1. 線形回帰モデル
+   1. 酸素摂取量データに対する最小二乗推定
+   2. 回帰モデルにおけるベイズ推定
+2. 準共役事前分布
+     1. 規定事前分布と弱情報事前分布
+3. モデル選択
+     1. ベイズ的なモデル比較
+     2. ギブスサンプリングとモデル平均
+
+# 1. 線形回帰モデル
+
+## 酸素摂取量(Kuehl, 2000)
+
+::: {.panel-tabset}
+
+### description
+
+-   日常的に運動しない健康な男性12人を対象に、2種類の運動療法が酸素摂取量に与える影響を調べる
+-   12人のランダムに2種類の運動療法に割り当てる
+    1.  ランニング
+    2.  エアロビクス
+-   従属変数: 12週間の運動前後の酸素摂取量(リットル/分)の変化(差分)
+-   独立変数: 運動療法, 年齢
+
+⇨所与の年齢と運動療法のもとで酸素摂取量の条件付き分布を推定したい
+
+### data
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+
+x1<-c(0,0,0,0,0,0,1,1,1,1,1,1)
+x2<-c(23,22,22,25,27,20,31,23,27,28,22,24)
+y<-c(-0.87,-10.74,-3.27,-1.97,7.50,-7.25,17.05,4.96,10.40,11.05,0.26,2.51)
+
+par(mfrow=c(1,1))
+plot(y~x2,pch=16,xlab="年齢",ylab="最大酸素摂取量の変化", 
+     col=c("black","gray")[x1+1])
+legend(27,0,legend=c("エアロビクス","ランニング"),pch=c(16,16),col=c("gray","black"))
+```
+
+
+:::
+
+## 酸素摂取量(Kuehl, 2000)
+
+- 年齢と運動療法の組み合わせごとに集団の平均と分散を推定する？
+  -   例: 22歳のランニンググループとエアロビクスグループで推定
+<br>
+<br>
+- ✖️参加者が一人しかいない年齢もあり
+  - →集団の分散に関する情報は不十分
+- ✖️データが存在しない年齢と運動療法の組み合わせも無数にある
+
+
+## 解決策: **線形回帰モデル**(linear regression model)を使う
+
+- 条件付き分布$p(y|x)$が$x$の関数として滑らかに変化すると仮定
+
+- 得られた$x$のデータから他の値の情報を得る
+
+- 条件付き平均$E[Y|x]$はパラメータに関して線形であると定める
+
+$$
+\int yp(y|\boldsymbol{x})dy = E[Y|\boldsymbol{x}]=\beta_1x_1+...+\beta_px_p=\boldsymbol{\beta}^T\boldsymbol{x}
+$$
+
+
+## 今回のモデルの仮定
+
+-   $p(y|\boldsymbol{x})$は年齢と酸素摂取量は線形関係
+- 運動療法のグループごとに異なる線形関係を想定(異なる関係でもいい)
+
+$$
+Y_i = \beta_1x_{i,1}+\beta_2x_{i,2}+\beta_3x_{i,3}+\beta_4x_{i,4}+\epsilon_i\tag{9.1}
+$$
+
+
+:::: {.columns}
+::: {.column width="50%" }
+-   $x_{i,1}$: 1(全ての参加者$i$で共通(切片))
+-   $x_{i,2}$: 参加者$i$の運動療法
+    -   0: 参加者$i$がランニングを行う場合
+    -   1: 参加者$i$がエアロビクスを行う場合
+
+:::
+::: {.column width="50%"}
+
+-   $x_{i,3}$: 参加者$i$の年齢
+-   $x_{i,4}$: $x_{i,2}\times x_{i,3}$ (交互作用)
+
+:::
+::::
+
+## 今回のモデルの仮定
+
+今回のモデルでの$Y$の条件付き期待値は、$x_{i,2}$のとりうる値によって次のようになる
+
+$$
+E[Y|\boldsymbol{x}] = \beta_1+\beta_3\times年齢(x_2=0の場合)\\
+E[Y|\boldsymbol{x}] = (\beta_1+\beta_2)+(\beta_3+\beta_4)\times年齢(x_2=1の場合)
+$$ 
+
+年齢との線形関係は運動療法のグループ間で切片と傾きの違いがあることが仮定
+
+## 酸素摂取量に対する四つのモデルの回帰直線
+
+::: {.panel-tabset}
+
+### ($\beta_3=0,\ \beta_4=0$)
+```{r}
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],ylab="最大酸素摂取量の変化",xlab="年齢")
+abline(h=mean(y[x1==0]),col="black") 
+abline(h=mean(y[x1==1]),col="gray")
+mtext(side=3,expression(paste(beta[3]==0,"  ",beta[4]==0)) )
+```
+
+
+### ($\beta_2=0,\ \beta_4=0$)
+
+```{r}
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],ylab="最大酸素摂取量の変化",xlab="年齢")
+abline(lm(y~x2),col="black")
+abline(lm((y+.5)~x2),col="gray")
+mtext(side=3,expression(paste(beta[2]==0,"  ",beta[4]==0)) )
+```
+
+
+### ($\beta_4=0$)
+
+```{r}
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],
+     ylab="最大酸素摂取量の変化",xlab="年齢" )
+fit<-lm( y~x1+x2)
+abline(a=fit$coef[1],b=fit$coef[3],col="black")
+abline(a=fit$coef[1]+fit$coef[2],b=fit$coef[3],col="gray")
+mtext(side=3,expression(beta[4]==0)) 
+```
+
+
+### ($\beta_2\neq0,\ \beta_4\neq0$)
+
+
+```{r}
+#| fig-align: center
+plot(y~x2,pch=16,col=c("black","gray")[x1+1],
+     ylab="最大酸素摂取量の変化",xlab="年齢")
+abline(lm(y[x1==0]~x2[x1==0]),col="black")
+abline(lm(y[x1==1]~x2[x1==1]),col="gray")
+```
+
+:::
+
+## 正規線形回帰モデル(normal linear regression model)
+
+-   $E[Y|\boldsymbol{x}]$が線形である
+-   平均まわりでの標本のばらつき
+-   独立かつ同一の正規分布に従う(i.i.d., p.30参照)
+
+$$
+\epsilon_1,...,\epsilon_n\sim \mathrm{i.i.d. normal}(0,\sigma^2)\\
+Y_i=\boldsymbol{\beta}^T\boldsymbol{x}_i+\epsilon_i
+$$
+
+→$\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2$で条件づけたもとで観測データ$y_1,...y_n$の同時分布を完全に特定する 
+
+## 正規線形回帰モデル(normal linear regression model)
+
+同時確率密度は式(9.2)で書ける
+
+$$
+p(y_1,...,y_n|\boldsymbol{x}_1,...,\boldsymbol{x}_n,\boldsymbol{\beta},\sigma^2)\tag{9.2}\\
+$$
+
+$$
+=\Pi_{i=1}^n p(y_i|\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2)\\
+=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\right\}\tag{9.3}
+$$
+
+## 正規線形回帰モデル(normal linear regression model)
+
+この同時確率密度は多変量正規分布を用いて書ける 
+
+$$
+\{\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2\}\sim \mathrm{multivariate\ normal}(\boldsymbol{X\beta},\sigma^2\mathrm{\boldsymbol{I}})
+$$
+
+-   $\boldsymbol{y} = (y_1,...,y_n)^T$
+-   $\boldsymbol{X}$ : $n\times p$行列. 第$i$行目が$x_i$
+-   $\mathrm{\boldsymbol{I}}$ : $n\times n$単位行列
+
+## 正規線形回帰モデル(normal linear regression model)
+
+$\boldsymbol{X\beta}$は以下で示せる 
+
+$$
+\boldsymbol{X\beta}＝\begin{pmatrix}x_1\rightarrow \\ x_2 \rightarrow\\ \vdots \\ x_n \rightarrow\end{pmatrix}
+\begin{pmatrix}\beta_1 \\ \beta_2\\ \vdots \\ \beta_p\end{pmatrix}
+=\begin{pmatrix}\beta_1x_{1,1}+\dots\beta_px_{1,p} \\  \vdots \\ \beta_px_{n,1}\dots\beta_px_{n,p}\end{pmatrix}
+=\begin{pmatrix}\mathrm{E}[Y_1|\boldsymbol{\beta},\boldsymbol{x}_1]\\  \vdots \\ \mathrm{E}[Y_n|\boldsymbol{\beta},\boldsymbol{x}_n]\end{pmatrix}
+$$
 
 ------------------------------------------------------------------------
 
-巨大なデータを扱うときにはCSVではなくParquetを使うと便利です。
+$$
+(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\right\}\tag{9.3}
+$$
 
-![](arrow_slide.jpg){fig-align="center" alt="前回発表スライド"}
+- 式(9.3)の密度は残差$(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)$を通じて$\boldsymbol{\beta}$に依存している
 
-## 今日の話
+- 観測されたデータを所与とすると、残差平方和$\mathrm{SSR(\boldsymbol{\beta})}=\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2$を最小にすることで尤度が最大になる
 
--   `dplyr`バックエンドの速度比較をやってみた。
--   `dtplyr`の日本語の情報が少ないので共有したい。
-    -   [今こそ、data.tableを学ぼう！](https://speakerdeck.com/s_uryu/datatable1130)(2020-08-01)もご確認ください。
+- **残差平方和を最小にするには微分する**
 
-::: columns
+## $\hat{\boldsymbol{\beta}}_{ols}$を求める
+
+::: {.panel-tabset}
+
+### 1. $\mathrm{SSR}(\boldsymbol{\beta})$を行列表記する
+
+$$
+\mathrm{SSR(\boldsymbol{\beta})}=\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2=(\boldsymbol{y}-\boldsymbol{X\beta})^T(\boldsymbol{y}-\boldsymbol{X\beta})\\
+=\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+{\beta}^T\boldsymbol{X}^T{X}\boldsymbol{\beta}
+$$
+
+### 2. 導関数を求める
+
+$$
+\frac{d}{d\boldsymbol{\beta}}\mathrm{SSR}(\boldsymbol{\beta})=\frac{d}{d\boldsymbol{\beta}}(\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+{\beta}^T\boldsymbol{X}^T{X}\boldsymbol{\beta})\\
+=-2\boldsymbol{X}^T\boldsymbol{y}+-2\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}
+$$
+
+- $g(z)=az$の導関数は$a$であり、$g(z)=bz^2$の導関数は$2bz$である
+
+
+### 3. 導関数が0になる$\boldsymbol{\beta}$を求める
+
+$$
+\frac{d}{d\boldsymbol{\beta}}\mathrm{SSR}(\boldsymbol{\beta})=0\Leftrightarrow2\boldsymbol{X}^T\boldsymbol{y}+-2\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}=0\\
+\Leftrightarrow \boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}=\boldsymbol{X}^T\boldsymbol{y}\\
+\Leftrightarrow \boldsymbol{\beta}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}
+$$
+
+:::
+
+## $\hat{\boldsymbol{\beta}}_{ols}$ : 最小二乗推定量
+
+- $\hat{\boldsymbol{\beta}}_{ols}$という値は、$\boldsymbol{\beta}$の「最小二乗」(ordinary least squares, OLS)推定量と呼ばれる。
+  - $\hat{\boldsymbol{\beta}}_{ols}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$
+
+-   この値は、$(\boldsymbol{X}^T\boldsymbol{X})^{-1}$が存在するなら一意に定まる
+
+
+## 9.1.1 酸素摂取量データに対する最小二乗推定
+
+式(9.1)のモデルにおいて最小二乗推定量を求め、運動療法の違いを評価する
+
+- 測定された酸素摂取量の変化: $\boldsymbol{y}$
+
+$$
+\boldsymbol{y}= (-0.87,-10.74,-3.27,-1.97,7.50,-7.25,17.05,4.96,10.40,11.05)
+$$
+
+- 式(9.1)に定義されているベクトル$x_1,x_2,x_3,x_4$から行列$\boldsymbol{X}$を構成する
+
+```{r}
+X <- matrix(c(1, 0, 23, 0 ,
+            	1, 0, 22, 0,
+            	1, 0, 22, 0,
+            	1, 0, 25, 0,
+            	1, 0, 27, 0,
+            	1, 0, 20, 0,
+            	1, 1, 31, 31,
+            	1, 1, 23, 23,
+            	1, 1, 27, 27,
+            	1, 1, 28, 28,
+            	1, 1, 22, 22,
+            	1, 1, 24, 24),ncol=4,byrow=TRUE)
+
+print(X)
+```
+
+## 9.1.1 酸素摂取量データに対する最小二乗推定
+
+:::: {.columns}
 ::: {.column width="50%"}
-### 対象かも
 
--   ✅`dplyr`派
--   ✅`dbplyr`や`dtplyr`を試す機会のなかった方
-:::
-
-::: {.column width="50%"}
-### 対象外かも
-
--   ✅`data.table`派
-:::
-:::
-
-# 結論
-
-Q. `data.table`って速いの？
-
-. . .
-
-A. `dtplyr`ですぐに試せるのでやってみましょう！\
-（`tidyverse`パッケージインストール時にインストールされてます！）
-
-# `dtplyr`, `arrow`, `duckdb`
-
-## `dplyr`バックエンド達
-
-`dplyr`で記述したデータ操作を`dplyr`外で実行するパッケージ。
-
--   tydyverse[^1]
-    -   [`multidplyr`](https://multidplyr.tidyverse.org/) : Rの計算を分散
-    -   [`dtplyr`](https://dtplyr.tidyverse.org/) : [`data.table`](https://rdatatable.gitlab.io/data.table/)のクエリに変換して計算実行
-    -   [`dbplyr`](https://dbplyr.tidyverse.org/) : [`duckdb`](https://duckdb.org/docs/api/r)などのDBにSQLを送信して計算実行
--   その他
-    -   [`sparklyr`](https://spark.rstudio.com/) : SparkにSQLを送信して計算実行
-    -   [`arrow`](https://arrow.apache.org/docs/r/) : Arrow C++ライブラリの計算エンジンAceroで計算実行
-
-[^1]: [dplyr backends: multidplyr 0.1.0, dtplyr 1.1.0, dbplyr 2.1.0](https://www.tidyverse.org/blog/2021/02/dplyr-backends/)
-
-## どれが速いか気になる！
-
--   `dtplyr`, `arrow`, `dbplyr`+`duckdb`は同じような目的（ローカル実行で集約計算などを速くしたい）で使用されます。
-    -   [前回の発表](https://eitsupi.github.io/tokyorslide/tokyor_97/)で`arrow`と共に`duckdb`を紹介したところ、\
-        「`duckdb`の使いどころが分からない」との感想をいただいた。
--   有名な[H2Oベンチマーク](https://h2oai.github.io/db-benchmark/)は最後の実行が2021年7月、 まだ`arrow`は`dplyr::summarise`を実行できなかった頃の結果。
-
-# ベンチマーク
-
-## 対象パッケージ
+- $(\boldsymbol{X}^T\boldsymbol{X})^{-1}$を計算する
 
 ```{r}
 #| echo: true
-
-library(dplyr)
-library(dtplyr)
-library(arrow)
-library(duckdb)
+t(X)%*%X
 ```
 
-. . .
+:::
 
-これらで、以下のようなグループ毎の集約計算を行います。
+::: {.column width="50%"}
+
+- $\boldsymbol{X}^T\boldsymbol{y}$を求める
 
 ```{r}
 #| echo: true
-
-mtcars |>
-  dplyr::group_by(cyl) |>
-  dplyr::summarise(sum = sum(wt, na.rm = TRUE), .groups = "drop")
+y<-c(-0.87,-10.74,-3.27,-1.97,7.50,-7.25,17.05,4.96,10.40,11.05,0.26,2.51)
+t(X)%*%y
 ```
+:::
+::::
 
-## 環境 {.smaller}
+$\hat{\boldsymbol{\beta}}_{ols}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$を計算する
+
 
 ```{r}
-sessionInfo()
+#| echo: true
+beta.ols<- solve(t(X)%*%X)%*%t(X)%*%y
+print(beta.ols)
 ```
+
+
+※正しい回帰直線はスライド11の($\beta_2\neq0,\ \beta_4\neq0$)
+
+## 9.1.1 酸素摂取量データに対する最小二乗推定
+
+$\sigma^2$の不偏推定量は$\mathrm{SSR}(\hat{\boldsymbol{\beta}}_{ols})/(n-p)$
+
+```{r}
+#| echo: true
+SSR_beta.ols <- t(y)%*%y -(2*t(beta.ols)%*%t(X)%*%y) +(t(beta.ols)%*%t(X)%*%X%*%beta.ols)
+n<-length(y)
+p<-dim(X)[2]
+print(SSR_beta.ols/(n-p))
+```
+
+# 9.2 回帰モデルにおけるベイズ推定
+
+
+## 9.2.1 準共役事前分布
+
+$\boldsymbol{x}_i,\boldsymbol{\beta},\sigma^2$で条件づけたもとで観測データ$y_1,...y_n$の同時分布を式(9.3)に示した
+
+$$
+p(y_1,...,y_n|\boldsymbol{x}_1,...,\boldsymbol{x}_n,\boldsymbol{\beta},\sigma^2)\\
+=(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n(y_i-\boldsymbol{\beta}^T\boldsymbol{x}_i)^2\right\}\tag{9.3}
+$$
+---
+
+このデータ密度は、$\boldsymbol{\beta}$の関数として次の様にかける
+$$
+p(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)\propto
+\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n\mathrm{SSR}(\boldsymbol{\beta})\right\}\\
+=\mathrm{exp}\left\{-\frac{1}{2\sigma^2}\sum_{i=1}^n
+[\boldsymbol{y}^T\boldsymbol{y}-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}+\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}]\right\}
+$$
+
+- 指数の中で$\boldsymbol{\beta}$は$\boldsymbol{y}$と同じような役割をしている
+- また、$\boldsymbol{y}$の分布は多変量正規分布
+- つまり、$\boldsymbol{\beta}$について多変量正規分布は共役になることが示唆
+
+---
+
+もし$\boldsymbol{\beta}\sim \mathrm{multivariate normal}(\boldsymbol{\beta}_0,\boldsymbol{\sum}_0)$ならば
+
+$$
+p(\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2)
+\propto p(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)\times p(\boldsymbol{\beta})\\
+\propto \mathrm{exp}\left\{-\frac{1}{2}(-2\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{y}/\sigma^2+\boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\boldsymbol{\beta}/\sigma^2)
+-\frac{1}{2}(-2\boldsymbol{\beta}^T\sum\nolimits_0^{-1}\boldsymbol{\beta}+\boldsymbol{\beta}^T\sum\nolimits_0^{-1}\boldsymbol{\beta})\right\}\\
+=\mathrm{exp}\left\{ \boldsymbol{\beta}^T(\sum\nolimits_0^{-1}\boldsymbol{\beta}_0+\boldsymbol{X}^T\boldsymbol{y}/\sigma^2) 
+-\frac{1}{2}\boldsymbol{\beta}^T(\sum\nolimits_0^{-1}+\boldsymbol{X}^T\boldsymbol{X})/\sigma^2)\boldsymbol{\beta}\right\}
+$$
+
+---
+
+これは、多変量正規分布の密度関数であり、平均と分散は以下で示される
+
+$$
+\mathrm{Var}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]=(\sum\nolimits_0^{-1}+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2)^{-1}\tag{9.4}
+$$
+
+$$
+\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]
+=\left(\sum\nolimits_0^{-1}+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2\right)^{-1}\left(\sum\nolimits_0^{-1}\boldsymbol{\beta}_0+\boldsymbol{X}^T\boldsymbol{y}/\sigma^2\right)\tag{9.5}
+$$
+
+- 精度行列$\sum_0^{-1}$の要素の絶対値が小さいとき、条件付き期待値$\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]$は近似的に最小二乗推定量$(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$に等しい
+- 観測の精度($\sigma^2$が非常に大きい)が非常に小さいときには、近似的に事前の期待値$\boldsymbol{\beta}_0$に等しくなる
+
+
+## $\sigma^2$の準共役事前分布
+
+ほとんどの正規モデルでは、$\sigma^2$の準共役事前分布は逆ガンマ分布である
+
+(5. 正規モデル参照)
+
+$\gamma=1/\sigma^2$を観測の精度とすると、$\gamma\sim\mathrm{gamma}(\nu_0/2,\nu_0\sigma_o^2/2)$ならば
+$$
+p(\boldsymbol{\gamma}|\boldsymbol{y},\boldsymbol{X},\boldsymbol{\beta})\propto p(\boldsymbol{\gamma})p(\boldsymbol{y}|\boldsymbol{\gamma},\boldsymbol{X},\boldsymbol{\beta})\\
+\propto[\gamma^{\nu_0/2-1}\mathrm{exp}(-\gamma\times\nu_0\sigma_0/2)]
+\times[\gamma^{n/2}\mathrm{exp}(-\gamma\times\mathrm{SSR}(\boldsymbol{\beta})/2)]\\
+=\gamma^{(\nu_0+n)/2-1}\mathrm{exp}(-\gamma[\nu_0\sigma_o^2+\mathrm{SSR}(\boldsymbol{\beta})]/2
+$$
+これはガンマ分布の密度だとみなせるので、以下の結果が得られる
+$$
+\{\sigma^2|\boldsymbol{y},\boldsymbol{X},\boldsymbol{\beta}\}\sim
+\mathrm{inverse\ gamma}([\nu_0+n]/2, [\nu_0\sigma_0^2+\mathrm{SSR}(\boldsymbol{\beta})]/2)
+$$
+
+
+## ギブスサンプラーによる事後分布近似
+
+
+
+1. $\boldsymbol{\beta}$の更新
+   1. $\mathrm{V}=\mathrm{Var}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^{2(s)}]$と$\mathrm{m}=\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2{2(s)}]$を計算する
+   2. $\boldsymbol{\beta}^{(s+1)}\sim\mathrm{multivariate normal(\mathrm{m},\mathrm{V})}$を生成
+2. $\sigma^2$の更新
+   1. $\mathrm{SSR}(\boldsymbol{\beta}^{(s+1)})$を計算する
+   2. $\sigma^{2_{(s+1)}}\sim
+      \mathrm{inverse\ gamma}([\nu_0+n]/2, [\nu_0\sigma_0^2+\mathrm{SSR}(\boldsymbol{\beta^{(s+1)}})]/2)$を生成
+
+
+
+## 9.2.2 規定事前分布と弱情報事前分布
+
+- 回帰モデルのベイズ分析では事前分布のパラメータ($\boldsymbol{\beta}_0,\boldsymbol{\sum}_0$)と($\nu_0,\sigma^2_0$)を特定する必要がある
+- これらの値を上手く見つけて、実際の事前の情報を表すのは難しい場合もある
+  - 結構ありそう
+- 今回の様な比較的単純なモデルでも特定する必要がある値はそこそこある
+  - 相関パラメータはpが増えるに従って劇的に増加
+
+※どんな感じで事前分布のパラメータの値を決めてるかはp.173参照
+
+
+
+---
+
+- 事前の情報が正確でない、共役事前分布で容易に表現できない
+  - →他の基準によって事前分布を正当化することがある
+  
+どうする？
+
+
+- 研究対象について事前の知識を全く持ってないという信念を事前分布で表現
+  - 「より客観的」な結論を得る
+
+弱情報事前分布の例として**単位情報事前分布(unit information prior)**をあげる
+
+(Kass and Wasserman, 1995)
+
+## 単位情報事前分布(unit information prior)
+
+- 1個の観測値に含まれる情報と同じ量の情報を含む事前分布
+  - $(\boldsymbol{X}^T\boldsymbol{X})/\sigma^2$: n個の観測値に含まれる情報の量($\hat{\boldsymbol{\beta}}_{ols}$の精度)
+  - $(\boldsymbol{X}^T\boldsymbol{X})/(n\sigma^2)$: 1個の観測値に含まれる情報
+- よって、単位情報事前分布では$\sum_0^{-1}=(\boldsymbol{X}^T\boldsymbol{X})/(n\sigma^2)$
+
+
+
+- $\boldsymbol{\beta}_0=\hat{\boldsymbol{\beta}}_{ols}$と定めることで、$\boldsymbol{\beta}$の事前分布の中心を最小二乗推定量にすることが提案されている
+- 単位情報事前分布は、$y$に含まれる情報を少ししか使ってない
+  - →バイアスがなく情報の少ない事前分布といえる
+- 同様に$\nu_o=1,\sigma_o^2=\hat{\sigma}_{ols}^2$と定めることで、$\sigma^2$の事前分布の中心を$\hat{\sigma}_{ols}^2$とする
+
+
+
+## 不変原理
+
+- パラメータ推定は説明変数の単位の変換に関して不変であるべき
+- 例: 酸素摂取量を分析するの年齢($x_{i,3}$)が月齢($\tilde{x}_{i,3}$)で事後分布は変わらないようにする
+  - 年齢の事後分布と月齢の事後分布は同じはずである
+
+---
+
+不変原理を考える
+
+- 与えられた説明変数$\boldsymbol{X}$について、ある$p\times p$行列$\boldsymbol{H}$があって$\tilde{\boldsymbol{X}}=\boldsymbol{XH}$
+- 不変原理において、$y$と$\boldsymbol{X}$から$\tilde{\boldsymbol{\beta}}$の事後分布をえたとき、$\boldsymbol{\beta}=\boldsymbol{H\tilde{\beta}}$
+- この条件が成立するのは、任意の正の値$k$に対して$\boldsymbol{\beta}_0=0$かつ$\sum_0=k(\boldsymbol{X}^T\boldsymbol{X})^{-1}$
+
+
+
+- $k$の特定の仕方として、代表的なものは誤差の分散$\sigma^2$に関係させて$k=g\sigma^2$とすること
+  - これは**g事前分布**(Zellner, 1986)の一種
+  
+## g事前分布
+
+- g事前分布のもとで$(\boldsymbol{y},\boldsymbol{X},\sigma^2)$を所与としたときの$\boldsymbol{\beta}$の条件付き分布は多変量正規分布
+- 式(9.4)(9.5)は以下の様な単純な形に帰着する
+
+
+$$
+\mathrm{Var}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]
+=[\boldsymbol{X}^T\boldsymbol{X}/(g\sigma^2)+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2]^{-1}\\
+=\frac{g}{g+1}\sigma^2(\boldsymbol{X}^T\boldsymbol{X})^{-1}\tag{9.6}
+$$
+
+$$
+\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]
+=[\boldsymbol{X}^T\boldsymbol{X}/(g\sigma^2)+\boldsymbol{X}^T\boldsymbol{X}/\sigma^2]^{-1}\boldsymbol{X}^T\boldsymbol{y}/\sigma^2\\
+=\frac{g}{g+1}\sigma^2(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}\tag{9.7}
+$$
+
+- $p(\sigma^2|\boldsymbol{y},\boldsymbol{X})$は逆ガンマ分布
+  - $(\sigma^2,\boldsymbol{\beta})$を事後分布から直接サンプリングすることが可能
+
+
+
+## $p(\sigma^2|\boldsymbol{y},\boldsymbol{X})$の導出
+
+- $\sigma^2$の周辺事後密度は$p(\sigma^2)\times(\boldsymbol{y}|\boldsymbol{X},\sigma^2)$​に比例する
+- 周辺確率の法則を用いて、積の第2項は以下の積分で書ける
+
+$$
+(\boldsymbol{y}|\boldsymbol{X},\sigma^2)
+=\int(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)(\boldsymbol{\beta}|\boldsymbol{X},\sigma^2)d\boldsymbol{\beta}
+$$
+
+積分の中にある二つの密度は式(9.6)を$V$と式(9.7)を$m$といて以下のように書ける
+
+(式の展開はp.175~176参照)
+$$
+(\boldsymbol{y}|\boldsymbol{X},\sigma^2)
+=\int(\boldsymbol{y}|\boldsymbol{X},\boldsymbol{\beta},\sigma^2)(\boldsymbol{\beta}|\boldsymbol{X},\sigma^2)d\boldsymbol{\beta}\\
+=\left[(2\pi\sigma^2)^{-n/2}\mathrm{exp}\left(-\frac{1}{2\sigma^2}\boldsymbol{y}^T\boldsymbol{y}\right)\right]
+\times \left[(1+g)^{-p/2}\mathrm{exp}\left(\frac{1}{2}m^TV^{-1}m\right)\right]
+$$
+
+---
+
+ここで、指数の項を組み合わせることで
+$$
+(\boldsymbol{y}|\boldsymbol{X},\sigma^2)=(2\pi)^{-2/n}(1+g)^{-p/2}(\sigma^2)^{-n/2}\mathrm{exp}\left(\frac{1}{2}\mathrm{SSR}_g\right)
+$$
+
+$$
+\mathrm{SSR}_g
+=\boldsymbol{y}^T\boldsymbol{y}-\sigma^2\boldsymbol{m}^T\boldsymbol{V}^{-1}\boldsymbol{m}
+=\boldsymbol{y}^T\left(\mathrm{I}-\frac{g}{g+1}\boldsymbol{X}(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\right)\boldsymbol{y}
+$$
+
+- $\mathrm{SSR}_g$は、$g\rightarrow\infty$の時に減少して$\mathrm{SSR}_{ols}=\sum(y_i-\boldsymbol{\hat{\beta}}_{ols}x_i)^2$となる
+- **$g$の値は回帰係数の大きさを縮小し、データの過適合を防ぐ効果を持つ**
+
+---
+
+- $p(\boldsymbol{y}|\boldsymbol{X},\sigma^2)$があきらかになったので、事前分布$p(\sigma^2)$をかけることで$p(\sigma^2|\boldsymbol{y},\boldsymbol{X})$は導出される
+- $\gamma=1/\sigma^2\sim\mathrm{gamma}(\nu_0/2, \nu_0\sigma_0^2/2)$とおく
+  - $p(\sigma^2|\boldsymbol{y},\boldsymbol{X})\propto p(\sigma^2)(\boldsymbol{y}|\boldsymbol{X},\sigma^2)$→$p(\gamma|\boldsymbol{y},\boldsymbol{X})\propto p(\gamma)(\boldsymbol{y}|\boldsymbol{X},\gamma)$
+
+
+$$
+p(\gamma|\boldsymbol{y},\boldsymbol{X})\propto p(\gamma)(\boldsymbol{y}|\boldsymbol{X},\gamma)\\
+\propto \mathrm{dgamma}(\gamma,[\nu_0+n]/2,[\nu_0\sigma_o^2+\mathrm{SSR}_g]/2)
+$$
+
+$$
+\{\sigma^2|\boldsymbol{y},\boldsymbol{X}\}\sim \mathrm{inverse\ gamma}([\nu_0+n]/2,[\nu_0\sigma_o^2+\mathrm{SSR}_g]/2)
+$$
+
+---
+
+::: {.panel-tabset}
+
+### モンテカルロ標本による近似値
+
+まとめると、
+
+- $p(\sigma^2|\boldsymbol{y},\boldsymbol{X})$は逆ガンマ分布、$p(\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2)$は多変量正規分布
+- 同時分布$p(\sigma^2,\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{\beta},\sigma^2)$に対してモンテカルロ近似出来る
+  - ギブスサンプリング不要
+
+
+
+1. $1/\sigma^2\sim \mathrm{gamma}([\nu_0+n]/2,[\nu_0,\sigma_o^2+\mathrm{SSR}_g]/2)$
+2. $\boldsymbol{\beta}\sim\mathrm{multivariate\ normal}\left(\frac{g}{g+1}\boldsymbol{\hat{\beta}}_{ols},\frac{g}{g+1}\sigma^2(\boldsymbol{X}^T\boldsymbol{X})^{-1}\right)$
+
+```{r}
+#### 事後分布からモンテカルロ標本を生成するコード
+yX.o2uptake <- 
+  structure(c(-0.87, -10.74, -3.27, -1.97, 7.5, -7.25, 17.05, 4.96, 
+            10.4, 11.05, 0.26, 2.51, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+            0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 23, 22, 22, 25, 27, 20, 31, 
+            23, 27, 28, 22, 24, 0, 0, 0, 0, 0, 0, 31, 23, 27, 28, 22, 24),
+            .Dim = c(12L, 5L),
+            .Dimnames = list(NULL, c("uptake", "intercept", "aerobic", 
+                                                   "age", "aerobic.age")))
+y <- yX.o2uptake[,1]; X <- yX.o2uptake[,-1] # データ
+g <- length(y); nu0 <- 1; s20 <- 8.54 # 事前分布パラメータ
+S <- 1000 #サンプリングサイズ
+
+
+n <- dim(X)[1]; p <- dim(X)[2]
+Hg <- (g/(g+1)) * X %*% solve(t(X)%*%X) %*% t(X)
+SSRg <- t(y) %*% (diag(1, nrow=n) -  Hg) %*% y #残差平方和
+s2 <- 1 / rgamma(S, (nu0+n)/2, (nu0*s20+SSRg)/2) #sigma
+Vb <- g * solve(t(X)%*%X) / (g+1) #分h散
+Eb <- Vb %*% t(X) %*% y #平均
+E <- matrix(rnorm(S*p,0,sqrt(s2)), S, p)
+beta <- t( t(E%*%chol(Vb))+ c(Eb)) #beta
+
+round( apply(beta,2,mean), 3)
+```
+
+### R code
+
+```{r}
+#| echo: true
+#| eval: false
+#### 事後分布からモンテカルロ標本を生成するコード
+yX.o2uptake <- 
+  structure(c(-0.87, -10.74, -3.27, -1.97, 7.5, -7.25, 17.05, 4.96, 
+            10.4, 11.05, 0.26, 2.51, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+            0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 23, 22, 22, 25, 27, 20, 31, 
+            23, 27, 28, 22, 24, 0, 0, 0, 0, 0, 0, 31, 23, 27, 28, 22, 24),
+            .Dim = c(12L, 5L),
+            .Dimnames = list(NULL, c("uptake", "intercept", "aerobic", 
+                                                   "age", "aerobic.age")))
+y <- yX.o2uptake[,1]; X <- yX.o2uptake[,-1] # データ
+g <- length(y); nu0 <- 1; s20 <- 8.54 # 事前分布パラメータ
+S <- 1000 #サンプリングサイズ
+
+
+n <- dim(X)[1]; p <- dim(X)[2]
+Hg <- (g/(g+1)) * X %*% solve(t(X)%*%X) %*% t(X)
+SSRg <- t(y) %*% (diag(1, nrow=n) -  Hg) %*% y #残差平方和
+s2 <- 1 / rgamma(S, (nu0+n)/2, (nu0*s20+SSRg)/2) #sigma
+Vb <- g * solve(t(X)%*%X) / (g+1) #分h散
+Eb <- Vb %*% t(X) %*% y #平均
+E <- matrix(rnorm(S*p,0,sqrt(s2)), S, p)
+beta <- t( t(E%*%chol(Vb))+ c(Eb)) #beta
+
+round( apply(beta,2,mean), 3)
+```
+
+:::
+
+
+## 酸素摂取量のベイズ分析
+
+:::  {.panel-tabset}
+
+### description
+
+- 不変なg事前分布を$g=n=12,\nu_0=1,\sigma_0^2=\hat{\sigma}_{ols}^2=8.54$とする
+- $\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X},\sigma^2]$は$\sigma^2$に依存しないので$\mathrm{E}[\boldsymbol{\beta}|\boldsymbol{y},\boldsymbol{X}]=\frac{g}{g+1}\sigma^2\boldsymbol{\hat{\beta}}_{ols}$
+- 1,000個の独立のモンテカルロ標本を生成
+
+### パラメータの事後分布
+
+:::: {.columns}
+::: {.column width="50%" }
+
+- $\beta_2,\beta_4$の周辺及び同時事後分布
+- 95%分位点による事後区間が0をまたいでいる
+  - 運動療法の違いによる証拠は弱い
+
+:::
+::: {.column width="50%"}
+
+```{r}
+#### g-prior
+source("source/regression_gprior.R")
+tmp<-lm.gprior(y,X )
+beta.post<-tmp$beta
+beta.ols<-lm(y~-1+X)$coef
+g<-n ; nu0=1 ; s20<-summary( lm(y~ -1+X))$sigma^2 
+beta.ols*g/(g+1)
+iXX<-solve(t(X)%*%X)
+
+mdt<-function(t,mu,sig,nu){ 
+  
+  gamma(.5*(nu+1))*(1+ ( (t-mu)/sig )^2/nu )^(-.5*(nu+1))/ 
+    ( sqrt(nu*pi)*sig* gamma(nu/2)  )
+}
+
+
+
+#### Figure 9.3
+par(mfrow=c(1,3),mar=c(2.75,2.75,.5,.5),mgp=c(1.7,.7,0))
+
+x<-seq(-85,130,length=200)
+plot(density(beta.post[,2],adj=2),xlab=expression(beta[2]),main="",ylab="",lwd=2,cex.lab=2)
+abline(v=0,col="gray")
+lines(x,mdt(x,0,sqrt(n*s20*iXX[2,2]),nu0 ),col="gray")
+
+x<-seq(-5,5,length=100)
+plot(density(beta.post[,4],adj=2),xlab=expression(beta[4]),main="",ylab="",lwd=2,cex.lab=2)
+abline(v=0,col="gray")
+lines(x,mdt(x,0,sqrt(n*s20*iXX[4,4]),nu0 ),col="gray")
+
+
+source("source/hdr2d.R")
+plot.hdr2d( beta.post[,c(2,4)],xlab=expression(beta[2]),
+            ylab=expression(beta[4]),cex.lab=2)
+abline(h=0,col="gray") ; abline(v=0,col="gray")
+```
+
+:::
+::::
+
+### 事後分布の箱ひげ図
+
+:::: {.columns}
+::: {.column width="50%" }
+
+
+- $\beta_2+\beta_4x$(年齢ごとの運動療法の違い)
+- 差に関する証拠は低い年齢では十分に強い
+- 高い年齢ではより弱い
+
+:::
+::: {.column width="50%"}
+
+```{r}
+#| fig-align: center
+#### Posterior of regression line
+BX<-NULL
+for(s in 1:dim(beta.post)[1]) { 
+  BX<-rbind(BX, beta.post[s,2] + (min(X[,3]):max(X[,3]))*beta.post[s,4] )
+}
+
+
+#### Function for plotting
+qboxplot<-function(x,at=0,width=.5,probs=c(.025,.25,.5,.75,.975))
+{
+  qx<-quantile(x,probs=probs)
+  segments(at,qx[1],at,qx[5])
+  polygon(x=c(at-width,at+width,at+width,at-width),
+          y=c(qx[2],qx[2],qx[4],qx[4]) ,col="gray")
+  segments(at-width,qx[3],at+width,qx[3],lwd=3)
+  segments(at-width/2,qx[1],at+width/2,qx[1],lwd=1)
+  segments(at-width/2,qx[5],at+width/2,qx[5],lwd=1)
+} 
+
+
+
+#### Figure 9.4
+
+par(mfrow=c(1,1),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+plot(range(X[,3]),range(y),type="n",xlab="age",
+     #   ylab="expected difference in change score")
+     ylab=expression(paste( beta[2] + beta[4],"age",sep="") ),cex.lab=1.5 )
+for( age  in  1:dim(BX)[2]  ) {
+  qboxplot( BX[,age] ,at=age+19 , width=.25) }  
+
+abline(h=0,col="gray")
+```
+
+:::
+::::
+
+:::
+
+
+# モデル選択
+
+## モデル選択
+
+- 回帰分析では膨大な数の説明変数を扱うこともある
+- しかし$Y$と本当に関連しているかは怪しい
+  - 全て入れると統計分析の性能は低くなる
+- $y$との関連が十分に確からしい変数だけをモデルに含めたい
+
+
+
+## 例: 糖尿病
+
+- 442人の糖尿病患者に関する10種類の変数$x_1,\dots,x_{10}$
+- 参照時点から1年後にどれだけ病状が進行したのかの指標$y$
+- 参照時点から$y$を予測するモデルを作成したい
+
+
+
+モデルどうする？
+
+- $y$と$x_j$の関係は線形ではないかもしれない
+- $x_j^2$や$x_jx_k$の様な項があったほうがいいかもしれない
+
+
+
+## 僕が考えた最強のモデル
+
+- 説明変数64個
+
+  - 主効果項: 説明変数10個
+
+  - 交互作用項: $\tbinom{10}{2}=45$個
+
+  - 二次の項: 9個(性別除く)
+
+- 変数は標準化($y,\boldsymbol{X}$が平均0,分散1)
+
+
+
+## モデル評価(方法)
+
+- 442人の糖尿病患者をランダムに分割
+  - 342人の訓練データ: $y,\boldsymbol{X}$
+  - 100人のテストデータ: $y_{test},\boldsymbol{X}_{test}$
+- 訓練データから推定された回帰係数を用いて、$\hat{y}_{test}=\boldsymbol{X}_{test}\hat{\boldsymbol{\beta}}$を生成
+- $\hat{y}_{test}$と$y_{test}$を比較して性能評価
+
+## モデル評価(結果)
+
+:::: {.columns}
+
+::: {.column}
+
+- 先ほどのモデルの予測値$\hat{y}_{test}$とテストデータ$y_{test}$を比較する
+- 平均二乗予測誤差は0.67
+  - 予測値を0とした場合は0.97
+
+- 回帰係数の推定値を見ると、ほとんど推定値は極めて小さい
+  - そういった変数を除くことで性能を上げられるかも
+
+:::
+
+::: {.column}
+
+```{r}
+#| fig-height: 6
+#| fig-align: center
+#### Diabetes example
+load("source/diabetes.RData")
+yf<-diabetes$y
+yf<-(yf-mean(yf))/sd(yf)
+
+Xf<-diabetes$X
+Xf<-t( (t(Xf)-apply(Xf,2,mean))/apply(Xf,2,sd))
+
+## set up training and test data
+n<-length(yf)
+set.seed(1)
+
+i.te<-sample(1:n,100)
+i.tr<-(1:n)[-i.te]
+
+y<-yf[i.tr] ; y.te<-yf[i.te]
+X<-Xf[i.tr,]; X.te<-Xf[i.te,]
+
+
+
+#### Figure 9.5
+par(mfrow=c(1,2),mar=c(2.75,2.75,.5,.5),mgp=c(1.5,.5,0))
+olsfit<-lm(y~-1+X)
+y.te.ols<-X.te%*%olsfit$coef
+plot(y.te,y.te.ols,xlab=expression(italic(y)[test]),
+     ylab=expression(hat(italic(y))[test]),cex.lab=1.5) ; abline(0,1)
+print(mean( (y.te-y.te.ols )^2 ),digits = 3)
+plot(olsfit$coef,type="h",lwd=2,xlab="regressor index",ylab=expression(hat(beta)[ols]),cex.lab=1.5)
+```
+
+::: 
+
+::::
+
+## モデル選択手順(model selection procedure)
+
+- 回帰係数の真の値が0でないという証拠をt統計量から評価する方法がある
+  - t統計量は最小二乗推定量を標準偏差でわることで得られる
+  - $t_j=\hat{\beta}_j/[\hat{\sigma}^2(\boldsymbol{X}^T\boldsymbol{X})_{j,j}^{-1}]^{1/2}$
+
+1. 推定値$\hat{\boldsymbol{\beta}}_{ols}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\boldsymbol{y}$とそのt統計量を得る
+2. もし$j$番目の説明変数について$|t_j|<t_{\mathrm{cutoff}}$となるならば
+   1. $|t_j|$が最小となる説明変数の番号を$j_{\mathrm{min}}$として、$\boldsymbol{X}$から$j_{\mathrm{min}}$列目を取り除く
+   2. 1に戻る
+3. モデルに残った全ての$j$についてカットオフを上回ったら終了
+
+この方法は、**変数減少法(backward elimination)**の一種である
+
+
+## 糖尿病データの場合
+
+:::: {.columns}
+
+::: {.column}
+
+- カットオフを1.65に定める
+  - p値が0.10に相当
+- 先述した変数減少法で20個(64個中)の変数が残った
+- 右図が新しいモデルの予測値とテストデータの比較である
+- 変数をすべて含んだモデルよりはよさそう
+  - 平均二乗誤差は0.53
+
+:::
+::: {.column}
+
+```{r}
+#| fig-height: 6
+## backwards selection
+source("source/backselect.R")
+
+vars<-bselect.tcrit(y,X,tcrit=1.65)
+bslfit<-lm(y~-1+X[,vars$remain])
+y.te.bsl<-X.te[,vars$remain]%*%bslfit$coef
+plot(y.te,y.te.bsl,ylim=range( c(y.te.bsl,y.te.ols)),
+     xlab=expression(italic(y)[test]),ylab=expression(hat(italic(y))[test]),cex.lab=1.5)
+abline(0,1)
+```
+
+
+:::
+
+::::
+
+
+
+## 変数減少法の欠点
+
+仮に、すべての説明変数が$Y$と独立な場合、この手順によってどのようなモデルが得られるのか
+
+:::: {.columns}
+
+::: {.column}
+
+- $y$をランダムに入れ替えて$\tilde{y}$を得る
+  - $x_i$は$y_i$に対して何の効果を持たない
+- 変数減少法前のt統計量
+  - カットオフ以上の変数は1つ
+- 変数減少法後のモデル
+  - カットオフ以上の変数は18個
+
+:::
+::: {.column}
+
+```{r}
+#### Figure 9.6 - backwards selection with permuted data
+yperm<-sample(y)
+par(mfrow=c(1,2),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+fit.perm<-lm(yperm~-1+X)
+t.perm<-summary(fit.perm)$coef[,3]
+b.perm<-summary(fit.perm)$coef[,1]
+plot(t.perm,type="h",lwd=2,xlab="regressor index",ylab="t-statistic",ylim=c(-4.8,4.8),cex.lab=1.5)
+
+vars.perm<-bselect.tcrit(yperm,X,tcrit=1.65)
+bslfit.perm<-lm(yperm~-1+X[,vars.perm$remain])
+t.bslperm<-t.perm*0
+b.bslperm<-b.perm*0
+t.bslperm[vars.perm$remain]<-summary(bslfit.perm)$coef[,3]
+b.bslperm[vars.perm$remain]<-summary(bslfit.perm)$coef[,1]
+plot(t.bslperm,type="h",lwd=2,xlab="regressor index",ylab="t-statistic",
+     ylim=c(-4.8,4.8),cex.lab=1.5 )
+```
+
+::: 
+
+::::
+
+実際には変数間は独立だが、変数減少法によって誤った示唆がなされてしまうことがある(Berk, 1978)
+
+
+# ベイズ的モデル選択
+
+## ベイズ的モデル選択
+
+- あるモデルの多くの回帰係数が0に等しいかもしれない
+  - その信念を表現する事前分布を考えればよい
+- 例えば、$z\in[0,1]$かつ$b_j$を正の実数として、$j$番目の回帰係数を$\beta_j=z_j\times b_j$と書く
+  - $z$=1の時、回帰係数が0ではない
+
+この時、回帰式は
+$$
+y_i=z_1b_1x_{i,1}+,\dots,+z_pb_px_{i,p}+\epsilon_i
+$$
+
+---
+
+酸素摂取量データでは
+$$
+E[Y|x,b,z=(1,0,1,0)]=b_1x_1+b_3x_3\\
+E[Y|x,b,z=(1,1,0,0)]=b_1x_1+b_2x_2
+$$
+
+- $z=(z_1,\dots,z_p)$の値ごとに異なるモデルが対応する
+- ベイズ的モデル選択では$z$に関する事前分布を得ることで進行する
+  - $\{\boldsymbol{z},\boldsymbol{\beta},\boldsymbol{\sigma^2}\}$の同時事前分布
+
+
+
+→**g事前分布が使えそう**
+
+---
+
+- モデルの事前分布$p(z)$を所与として、各回帰モデルの事後確率は次の様に計算できる
+
+$$
+p(z|y,\boldsymbol{X})
+=\frac{p(z)p(y|\boldsymbol{X},z)}{\sum_{\tilde{z}}p(\tilde{z})p(y|\boldsymbol{X},\tilde{z})}
+$$
+
+任意の二つのモデル比較は、事後オッズを比較することでも可能
+$$
+\mathrm{odds}(z_a,z_b|y,\boldsymbol{X})
+=\frac{p(z_a|y,\boldsymbol{X})}{p(z_b|y,\boldsymbol{X})}
+=\frac{p(z_a)}{p(z_b)}
+\times\frac{p(y|\boldsymbol{X},z_a)}{p(y|\boldsymbol{X},z_b)}
+$$
+
+- 事後オッズは、事前オッズとベイズファクターの積
+- ベイズファクターは、データに対してモデル$z_a$が$z_b$に比べてどれだけ利するか解釈可能
+- $p(y|\boldsymbol{X},z)$を計算する必要がある
+
+
+
+## 周辺確率の計算
+
+$$
+p(y|\boldsymbol{X},z)=\int\int p(y,\boldsymbol{\beta},\sigma^2|\boldsymbol{X},z)d\beta d\sigma^2\\
+=\int\int p(y|\boldsymbol{\beta},\boldsymbol{X},z,\sigma^2)p(\boldsymbol{\beta}|\boldsymbol{X},z,\sigma^2)p(\sigma^2) d\beta d\sigma^2 \tag{9.8}
+$$
+
+- g事前分布の一種を用いることで簡単に表現
+- $z$を所与とし、$p_z$個の要素が0でないとして、$z_j=1$となるような変数からなる$n\times p_z$行列を$\boldsymbol{X}_z$
+- $\boldsymbol{\beta}_z$は$p_z\times 1$ベクトル
+
+---
+
+- $\boldsymbol{\beta}$の変形g事前分布は、$z_j=0$となる$j$については$\beta=0$とし、かつ
+
+$$
+\{\boldsymbol{\beta}_z|\boldsymbol{X}_z,\sigma^2\}
+\sim\mathrm{multivariate\ normal}(\boldsymbol{0},g\sigma^2[\boldsymbol{X}_z^T\boldsymbol{X}_z]^{-1})
+$$
+
+式(9.8)で$\boldsymbol{\beta}$を積分
+$$
+p(y|\boldsymbol{X},z)=\int(\int p(y|\boldsymbol{X},z,\sigma^2,\boldsymbol{\beta})p(\boldsymbol{\beta}|\boldsymbol{X},z,\sigma^2)d\boldsymbol{\beta})p(\sigma^2)d\sigma^2\\
+=\int p(y|\boldsymbol{X},z,\sigma^2)p(\sigma^2)d\sigma^2
+$$
+
+- 周辺確率$p(y|\boldsymbol{X},z,\sigma^2)$の計算はg事前分布でやった
+- $\gamma=1/\sigma^2$とし、ガンマ分布の密度$p(\gamma)$をパラメータ$(\nu_0/2,\nu_0\sigma^2_0/2)$を計算する
+
+---
+
+- $(\boldsymbol{X},z)$を所与とした$(y,\gamma)$の条件付き密度は次のようになる
+
+$$
+p(y|\boldsymbol{X},z,\gamma)\times p(\gamma)\\
+=(2\pi)^{-n/2}(1+g)^{-p_z/2}\times[\gamma^{n/2}e^{-\gamma\mathrm{SSR}_g^z/2}]\\
+\times(\nu_0\sigma_0^2/2)\Gamma(\nu_0/2)^{-1}[\gamma^{\nu_0/2-1}e^{-\gamma\nu_0\sigma_0^2/2}]\tag{9.9}
+$$
+
+
+
+- $\mathrm{SSR}_g^z$の説明変数行列は$\boldsymbol{X}_z$である
+- 式(9.9)では$\gamma$に依存する箇所はガンマ分布の密度に比例
+
+$$
+\gamma^{(\nu_0+n)/2-1}\mathrm{exp}(-\gamma\times(\nu_0\sigma^2_0+\mathrm{SSR}_g^z)/2)
+=\frac{\Gamma([\nu_0+n]/2)}{([\nu_0\sigma^2_0+\mathrm{SSR}_g^z]/2)^{(\nu_0+n)/2-1}}
+$$
+
+- 右辺にガンマ分布の密度の項もあるが、積分して消える(p.184参照)
+
+---
+
+よって$p(y|\boldsymbol{X},z)$は
+$$
+p(y|\boldsymbol{X},z)=\pi^{-n/2}\frac{\Gamma([\nu_0+n]/2)}{\Gamma(\nu_0/2)}(1+g)^{-p_z/2}\frac{(\nu_0\sigma_0^2)^{\nu_0/2}}{(\nu_0\sigma^2_0+\mathrm{SSR}_g^z)^{(\nu_0+n)/2}}
+$$
+
+
+任意の二つのモデル$z_a$と$z_b$の比(ベイズファクター)は
+$$
+\frac{p(y|\boldsymbol{X},z_a)}{p(y|\boldsymbol{X},z_b)}
+=(1+n)^{(p_{z_b}-p_{z_a})/2}\left(\frac{s_{z_a}^2}{s_{z_b}^2}\right)^{1/2}
+\times\left(\frac{s_{z_b}^2+\mathrm{SSR}_g^{z_b}}{s_{z_a}^2+\mathrm{SSR}_g^{z_a}}\right)^{(n+1)/2}
+$$
+
+
+## 酸素摂取量の例
+
+酸素摂取量のデータに対する回帰モデルは以下の通りであった
+$$
+E[Y_i|\boldsymbol{\beta},x_i]=\beta_1x_{i,1}+\beta_2x_{i,2}+\beta_3x_{i,3}+\beta_4x_{i,4}
+$$
+
+- 運動療法の効果の有無は$\beta_2,\beta_4$が0かどうか(前節では、効果はないことが示唆)
+
+
+| $\boldsymbol{z}$ | モデル                                                       | $log\ p(y|\boldsymbol{X},z)$ | $p(z|y,\boldsymbol{X})$ |
+| ---------------- | ------------------------------------------------------------ | ---------------------------- | ----------------------- |
+| (1,0,0,0)        | $\beta_1$                                                    | -44.33                       | 0.00                    |
+| (1,1,0,0)        | $\beta_1+\beta_2\times グループ_i$                           | -42.35                       | 0.00                    |
+| (1,0,1,0)        | $\beta_1+\beta_3\times 年齢_i$                               | -37.66                       | 0.18                    |
+| (1,1,1,0)        | $\beta_1+\beta_2\times グループ_i+\beta_3\times 年齢_i$      | -36.42                       | 0.63                    |
+| (1,1,1,1)        | $\beta_1+\beta_2\times グループ_i+\beta_3\times 年齢_i\\+\beta_4\times グループ_i\times 年齢_i$ | -37.60                       | 0.19                    |
+
+
+---
+
+- $\beta$に対してg事前分布
+- $\sigma^2$に対して単位情報事前分布
+
+
+
+- 5つのモデルの中で最も確率が高いモデルは$z=(1,1,1,0)$
+  - グループで切片が異なるが、傾きへの交互作用はないモデル
+- 年齢を含む三つのモデルの事後確率を足すとほぼ1になる
+  - 年齢に関する証拠は強い
+- 運動療法の事後確率は0.82
+  - 事前確率0.60なのでそれよりは高い確率
+
+
+
+## 9.3.2 ギブスサンプリングとモデル平均
+
+- p個の回帰係数が0かどうか考察するときを考える
+  - モデルの数は$2^p$個
+  - pが大きいと、それぞれのモデルの周辺確率を計算するのは非現実的
+- 糖尿病データはp=64
+  - モデルの合計は$2^{64}$
+- ギブスサンプリングを使えば、確率が比較的高いモデルのリストや$\beta$のよい推定値が得られる
+
+
+
+## ギブスサンプリング
+
+- 現在の値$\boldsymbol{z}=(z_1,\dots,z_p)$を所与として、新たな$z_j$の値を$p(z_j|y,\boldsymbol{X},z_{-j})$から生成
+- 完全条件付確率は$o_j/(1+o_j)$と書ける
+- $o_j$は$z_j$が1となる条件付きオッズ
+
+
+$$
+o_j=\frac{\mathrm{Pr}(z_j=1|y,\boldsymbol{X},z_{-j})}{\mathrm{Pr}(z_j=0|y,\boldsymbol{X},z_{-j})}
+=\frac{\mathrm{Pr}(z_j=1)}{\mathrm{Pr}(z_j=1)}
+\times \frac{p(y|\boldsymbol{X},z_{-j},z_j=1)}{p(y|\boldsymbol{X},z_{-j},z_j=0)}
+$$
+
+- $\mathrm{\beta},\sigma^2$も事後分布からサンプリングする必要がある
+  - 9.2節の結果から直接サンプリング可能
+
+---
+
+1. $z=z^{(s)}$と定める
+2. ランダムな順番で$j\in\{1.,\dots,p\}$に対し、$z_j$を$p(z_j|z_{-j},y,\boldsymbol{X})$からの標本で置き換える
+3. $z^{s+1}=z$と定める
+4. $\sigma^{2(s+1)}\sim p(\sigma^2|z^{(s+1)},y,\boldsymbol{X})$を生成する
+5. $\boldsymbol{\beta}^{(s+1)}\sim p(\boldsymbol{\beta}|z^{(s+1)},\sigma^{2(s+1)},y,\boldsymbol{X})$を生成する
+
+
+
+## 糖尿病の例
+
+::: {.panel-tabset}
+
+### description
+
+- $z$には一様分布、反復回数を$S=10,000$としたギブスサンプリングを行う
+- $p=64$であり、モデルの合計は$2^{64}$
+  - 事後分布の標本の数と$10^{15}$倍
+- $z$のMCMC標本10,000のうち、1回以上サンプリングされたモデルは32
+  - 2回サンプリングされたモデルは28個
+  - 6回サンプリングされたモデルは2個
+
+- $p$が大きいとき、ギブスサンプリングによる$z$の事後分布の近似は良くない
+- しかし、ほとんどの説明変数で効果がないときには$z_j,\beta_j$の周辺事後分布の推定は妥当
+
+### Gibbs sampling
+
+```{r}
+#| echo: true
+## Don't run it again if you've already run it
+runmcmc<-!any(dir("source") %in% "diabetesBMA.RData")
+
+if(!runmcmc){ load("source/diabetesBMA.RData") }
+
+if(runmcmc){
+  
+  BETA<-Z<-matrix(NA,S,p)
+  z<-rep(1,dim(X)[2] )
+  lpy.c<-lpy.X(y,X[,z==1,drop=FALSE])
+  for(s in 1:S)
+  {
+    for(j in sample(1:p))
+    {
+      zp<-z ; zp[j]<-1-zp[j]
+      lpy.p<-lpy.X(y,X[,zp==1,drop=FALSE])
+      r<- (lpy.p - lpy.c)*(-1)^(zp[j]==0)
+      z[j]<-rbinom(1,1,1/(1+exp(-r)))
+      if(z[j]==zp[j]) {lpy.c<-lpy.p}
+    }
+    
+    beta<-z
+    if(sum(z)>0){beta[z==1]<-lm.gprior(y,X[,z==1,drop=FALSE],S=1)$beta }
+    Z[s,]<-z
+    BETA[s,]<-beta
+    if(s%%10==0)
+    { 
+      bpm<-apply(BETA[1:s,],2,mean) ; plot(bpm)
+      cat(s,mean(z), mean( (y.te-X.te%*%bpm)^2),"\n")
+      Zcp<- apply(Z[1:s,,drop=FALSE],2,cumsum)/(1:s)
+      plot(c(1,s),range(Zcp),type="n") ; apply(Zcp,2,lines)
+    }
+  } 
+  save(BETA,Z,file="source/diabetesBMA.RData")
+}
+```
+
+
+:::
+
+
+## 説明変数の事後確率
+
+:::: {.columns}
+::: {.column}
+- 事後確率が0.5以上の説明変数は6個
+  - 変数減少法で残った20個の変数にも含まれている
+:::
+
+::: {.column}
+
+```{r}
+#| fig-width: 10
+#| fig-height: 8
+#| fig-align: center
+#### Figure 9.7
+
+plot(apply(Z,2,mean,na.rm=TRUE),xlab="regressor index",ylab=expression(
+  paste( "Pr(",italic(z[j] == 1),"|",italic(y),",X)",sep="")),type="h",lwd=2,cex.lab=1.2)
+```
+
+
+:::
+::::
+
+## $\hat{\beta}_{bma}$
+
+- $\beta$の事後平均$\hat{\beta}_{bma}=\sum_{s=1}^S\beta^{(s)}/S$で近似
+  - $\beta$の(ベイズ)モデル平均(Bayesian model averaged)推定量と呼ばれる
+- 異なるzの値から得られる回帰パラメータの平均
+  - 単一のモデルで推定した$\beta$よりも性能が良くなることが多い
+```{r}
+#| echo: true
+
+beta.bma<-apply(BETA,2,mean,na.rm=TRUE)
+print(beta.bma)
+
+```
+
+
+## 予測値と実測値の平均二乗誤差
+
+:::: {.columns}
+::: {.column}
+- 糖尿病データの予測問題
+  - $\hat{y}_{test}=\boldsymbol{X}\hat{\boldsymbol{\beta}}_{bma}$
+  - 予測値の平均二乗誤差は0.452
+  - 変数減少法より好ましい
+
+:::
+
+::: {.column}
+
+```{r}
+#| fig-width: 12
+#| fig-height: 10
+#| fig-align: center
+
+y.te.bma<-X.te%*%beta.bma
+plot(y.te,y.te.bma,xlab=expression(italic(y)[test]),
+     ylab=expression(hat(italic(y))[test]),cex.lab=2) ; abline(0,1)
+```
+
+:::
+::::
+
+---
+
+- $Y,x$が無関係な状況では?
+- $\boldsymbol{X}$とは独立に順番を入れ替えて作ったベクトル$\tilde{y}$
+- 変数減少法: 18個の説明変数が残った
+- $\mathrm{Pr}(z_j=1|\boldsymbol{y,X})=\sum z_l^{(s)}/S$だと全ての説明変数で事後確率は1/2未満
+- 変数減少法より、本来ない効果あると見積もることはない(らしい)
+
+# おしまい
+

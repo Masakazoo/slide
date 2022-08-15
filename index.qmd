@@ -2,6 +2,4 @@
 title: "Slides"
 ---
 
-
-- [第100回R勉強会@東京（#TokyoR）dplyrバックエンドベンチマーク](./tokyor_100/index.html)
-- [ベイズ塾合宿2022夏](./bayesjuku_2022summer/index.html)
+- [標準ベイズ統計学 -9. 線形回帰-(ベイズ塾合宿2022夏) ](./bayesjuku_2022summer/index.html)
