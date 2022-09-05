@@ -1,0 +1,892 @@
+---
+title: "標準ベイズ統計学<br/> -3. 二項モデルとポアソンモデル-"
+subtitle: "安藤 正和"
+format:
+  revealjs:
+    theme: [beige, custom.scss]
+    width: 1280
+    height: 720
+    slide-number: true
+    chalkboard: false
+    footer: "3. 二項モデルとポアソンモデル"
+    self-contained: true
+    reference-location: document
+engine: knitr
+lang: ja
+execute:
+  cache: true
+---
+# objective
+
+- 1つの未知パラメータで定まる確率分布に対するベイズ推測やっていき
+  - 二項モデル
+  - ポアソンモデル
+- 共役事前分布や信用区間といった枠組みを考える
+
+# 3.1 二項モデル
+
+## 3.1 二項モデル
+
+#### 幸福度データ
+
+- 1998年の総合的社会調査において、65才以上の女性に「幸せか」どうかを質問
+- $i$: 回答者
+  - $i$が幸せと回答: $Y_i=1$
+  - otherwise: $Y_i=0$
+- 回答者($n=129$)を区別する情報がない場合、これらの回答は**交換可能**と考えられる
+- この時、$Y_1,\dots,Y_{129}$に関する同時信念は以下で近似可能
+  - $\theta=\sum_{i=1}^NY_i/N$
+  - $\theta$が所与のもとで、各$Y_i$は期待値$\theta$をもつ独立同一の二値の確率変数であるモデル
+
+
+$$
+p(y_1,\dots,y_{129}|\theta)=\theta^{\sum_{i=1}^{129}y_i}(1-\theta)^{129-\sum_{i=1}^{129}y_i}
+$$
+
+## 一様事前分布
+
+- パラメータ$\theta$はある未知の数で、0から1の値をとる
+- $\theta$の事前情報 : 同じ区間幅を持つ$[0,1]$の全ての部分区間において等確率を持つ仮定
+
+$$
+\mathrm{Pr}(a\leq\theta\leq b) =\mathrm{Pr}(a+c\leq\theta\leq b+c)\ (0\leq a<b< b+c\leq1)
+$$
+
+- つまり、$\theta$は一様分布の密度関数(すべての$\theta\in[0,1]$に対して$p(\theta)=1$)
+
+---
+
+- この時、ベイズの定理により以下が成り立つ
+
+$$
+\begin{align}
+p(\theta|y_1,\dots,y_{129})&=\frac{p(y_1,\dots, y_{129}|\theta)p(\theta)}{p(y_1,\dots,y_{129})}\\
+&=p(y_1,\dots,y_{129}|\theta)\times \frac{1}{p(y_1,\dots,y_{129})}\\
+&\propto p(y_1,\dots,y_{129}|\theta)
+\end{align}
+$$
+
+- 事後分布が標本モデルと比例の関係にあるのは、$\theta$に依存しないもので割ったから
+  - 事後分布と標本モデルの$\theta$の関数は同じ形状, but 必ずしも同じ尺度ではない
+  - つまり分母は、事後分布と標本モデルのスケールを合わせる役割を持つ
+    - **正規化定数(normalizing constant)**
+
+## データと事後分布
+
+- 調査対象は129人
+- 幸せと回答したのは118人(91%)
+- その他は11人(9%)
+
+ある$\theta$が与えられたもとでのこれらのデータの確率(標本モデル)は
+
+
+$$
+p(y_1,\dots,y_{129}|\theta)=\theta^{118}(1-\theta)^{11}
+$$
+
+## 標本確率と事後分布
+
+:::: {.columns}
+::: {.column width="30%" }
+
+標本モデル(上)と事後確率(下)
+
+- 形状は似ている
+- ピークの位置が異なる
+- 尺度も異なる
+
+:::
+
+::: {.column width="70%" }
+
+
+```{r}
+#| fig-align: center
+load("source/gss.RData")
+
+
+y<-gss[gss$YEAR==1998 & gss$AGE>=65 & gss$FEMALE==1, ]$HAPUNHAP
+y[y>4]<-NA
+y[y<=2]<-1 
+y[y>2]<-0
+y<-y[!is.na(y) ]
+sy<-sum(y)
+n<-length(y)
+
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+par(mfrow=c(2,1))
+
+theta<-seq(0,1,length=200)
+plot(theta,10^17*theta^sy*(1-theta)^(n-sy),type="l",ylab=
+       expression(paste(10^27, paste(italic("p"),"(",italic(y[1]),",...,",
+                                     italic(y[129]),sep=""), paste("|",theta,")",sep="")), sep=""), 
+     xlab=expression(theta))
+
+plot(theta,dbeta(theta,sy+1,n-sy+1),type="l",ylab=
+       expression(paste(italic("p"),"(",theta,"|",italic(y[1]),",...,",
+                        italic(y[129]),")",sep="")),xlab=expression(theta))
+abline(h=1,col="gray")
+
+```
+
+:::
+::::
+
+尺度を揃えたい!!→正規化定数を求めよう
+
+## 正規化定数知りたい
+
+$$
+\begin{align}
+p(\theta|y_1 ,\dots,y_{129})&=\theta^{118}(1-\theta)^{11}\frac{p(\theta)}{p(y_1,\dots,y_{129})}\\
+&=\theta^{118}(1-\theta)^{11}\times1/p(y_1,\dots,y_{129})\\
+\end{align}
+$$
+
+ベータ関数とガンマ関数の関係より
+
+$$
+\int^1_0\theta^{a-1}(1-\theta)^{b-1}d\theta=\frac{\Gamma(a)\Gamma(b)}{\Gamma(a+b)}
+$$
+
+
+---
+
+事後分布は確率分布なのでパラメータが取りうる範囲で積分したら1になるから
+
+$$
+1=\frac{\Gamma(119)\Gamma(12)}{\Gamma(131)}\times1/p(y_1,\dots,y_{129})\\
+p(y_1,\dots,y_{129})=\frac{\Gamma(119)\Gamma(12)}{\Gamma(131)}
+$$
+- $\theta$に関する密度は、パラメータa=119,b=12を持つ**ベータ分布(beta distribution)**
+- 118個の1と11個の0が含まれているどのような列$\{y_1,\dots,y_{129}\}$に対しても当てはまる
+  - 交換可能性嬉しい
+
+
+
+## ベータ分布
+
+0~1の間に値をとる確率変数$\theta$がベータ分布$\mathrm{beta}(a,b)$に従うとは
+$$
+p(\theta)\equiv\mathrm{dbeta}(\theta,a,b)=\frac{\Gamma(a+b)}{\Gamma(a)+\Gamma(b)}\theta^{a-1}(1-\theta)^{b-1}
+$$
+
+- $\mathrm{mode}[\theta]=(a-1)/[(a-1)+(b-1)]\ (a>1かつb>1)$
+- $\mathrm{E}[\theta]=a/(a+b)$
+- $\mathrm{Var}[\theta]=ab/[(a+b+1)(a+b)^2]=\mathrm{E}[\theta]\times \mathrm{E}[1-\theta]/(a+b+1)$
+
+
+今回のデータ$(Y_1,\dots,Y_{129})=(y_1,\dots,y_{129}), \sum_{i=1}^{129}=118$が観測されている時
+
+- $\mathrm{mode}[\theta|y_1,\dots,y_{129}]=0.915$
+- $\mathrm{E}[\theta|y_1,\dots,y_{129}]=0.908$
+- $\mathrm{Var}[\theta|y_1,\dots,y_{129}]=ab/[(a+b+1)(a+b)^2]=0.025$
+
+# 3.1.1 交換可能な二値データに対する推測
+## 3.1.1 交換可能な二値データに対する推測
+
+$Y_1,\dots,Y_n|\theta$を$\mathrm{binary}(\theta)$から独立同一標本(i.i.d)とするとき
+
+$$
+p(\theta|y_1,\dots,y_n)=\frac{\theta^{\sum y_i}(1-\theta)^{n-\sum y_i}p(\theta)}{p(y_1,\dots,y_n)}
+$$
+
+もし、任意の二つの$\theta(\theta_a,\theta_b)$の値の相対確率を計算したければ
+
+$$
+\begin{align}
+\frac{p(\theta_a|y_1,\dots,y_n)}{p(\theta_b|y_1,\dots,y_n)}&=
+\frac{\theta_a^{\sum y_i}(1-\theta_a)^{n-\sum y_i}\times p(\theta_a)/p(y_1,\dots,y_n)}
+{\theta_b^{\sum y_i}(1-\theta_b)^{n-\sum y_i}\times p(\theta_b)/p(y_1,\dots,y_n)}\\
+&=\left(\frac{\theta_a}{\theta_b}\right)^{\sum y_i}
+\left(\frac{1-\theta_a}{1-\theta_b}\right)^{n-\sum y_i}\frac{p(\theta_a)}{p(\theta_b)}
+\end{align}
+$$
+
+## 十分統計量
+
+- $\theta_b$における確率密度に対する,$\theta_a$の確率密度は$\sum_{i=1}^ny_i$が分かれば解ける
+  - $\sum_{i=1}^ny_i$はデータから得られる$\theta$に関するすべての情報を持つ
+  - $\sum_{i=1}^ny_i$は$\theta, p(y_1,\dots,y_{129}|\theta)$に対する**十分統計量(sufficient statistic)**
+<br/>
+<br/>
+- **十分統計量**: あるパラメータを推測したいときに、分かると(知ると)推測に**十分**な統計量
+  - この後の章でも頻繁に出てくるので覚えておいた方がいい
+<br/>
+<br/>
+- $Y_1,\dots,Y_n|\theta$を$\mathrm{binary}(\theta)$から独立同一標本(i.i.d)とするとき、統計量$Y=\sum_{i=1}^nY_i$はパラメータ$(n,\theta)$をもつ**二項分布(binomial distribution)**に従う
+
+
+
+## 二項分布
+
+確率変数$Y\in\{0,1,\dots,n\}$が二項分布$\mathrm{binomial}(n,\theta)$に従うというのは
+$$
+\mathrm{Pr}(Y=y|\theta)\equiv\mathrm{dbinom}(y,n,\theta)=\binom{n}{y}\theta^y(1-\theta)^{n-y}, y\in\{0,1,\dots,n\}
+$$
+
+::: {.panel-tabset}
+### $n=10, \theta\in\{0.2,0.8\}$
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+par(mfrow=c(1,2))
+
+n<-10
+theta<-.2
+plot(0:n,dbinom(0:n,n,theta), type="h",lwd=2,xlab=expression(italic(y)),
+     ylab=expression(paste("Pr(",italic("Y=y"),"|",theta==.2,
+                           italic(", n="),"10)",sep="")))
+n<-10
+theta<-.8
+plot(0:n,dbinom(0:n,n,theta), type="h",lwd=2,xlab=expression(italic(y)),
+     ylab=expression(paste("Pr(",italic("Y=y"),"|",theta==.8,
+                           italic(", n="),"10)",sep="")))
+
+```
+
+### $n=100, \theta\in\{0.2,0.8\}$
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+par(mfrow=c(1,2))
+
+n<-100
+theta<-.2
+plot(0:n,dbinom(0:n,n,theta), type="h",lwd=2,xlab=expression(italic(y)),
+     ylab=expression(paste("Pr(",italic("Y=y"),"|",theta==.2,
+                           italic(", n="),"100)",sep="")))
+
+n<-100
+theta<-.8
+plot(0:n,dbinom(0:n,n,theta), type="h",lwd=2,xlab=expression(italic(y)),
+     ylab=expression(paste("Pr(",italic("Y=y"),"|",theta==.8,
+                           italic(", n="),"100)",sep="")))
+
+```
+
+
+### 二項分布の代表値
+- 二項分布$\mathrm{binomial}(n,\theta)$
+<br>
+<br>
+- $\mathrm{E}[Y|\theta]=n\theta$
+- $\mathrm{Var}[Y|\theta]=n\theta(1-\theta)$
+
+:::
+
+
+## 一様事前分布のもとでの事後推測
+
+$Y=y$を観測した時、$\theta$の事後分布を求めるには
+$$
+\begin{align}
+p(\theta|y)&=\frac{p(y|\theta)p(\theta)}{p(y)}\\
+&=\frac{\binom{n}{y}\theta^y(1-\theta)^{n-y}p(\theta)}{p(y)}\\
+&=c(y)\theta^y(1-\theta)^{n-y}p(\theta)
+\end{align}
+$$
+
+- $c(y)$は$\theta$に無関係な$y$の関数(正規化定数)
+
+---
+
+- 一様分布$p(\theta)=1$では、正規化定数$c(y)$を以下のように計算可能
+
+$$
+\begin{align}
+1=\int_0^1c(y)\theta^y(1-\theta)^{n-y}d\theta &\Longleftrightarrow 1=c(y)\int_0^1\theta^y(1-\theta)^{n-y}d\theta\\
+&\Longleftrightarrow1=c(y)\frac{\Gamma(y+1)\Gamma(n-y+1)}{\Gamma(n+2)}
+\end{align}
+$$
+
+よって事後分布は
+$$
+\begin{align}
+p(\theta|y)&=\frac{\Gamma(n+2)}{\Gamma(y+1)\Gamma(n-y+1)}\theta^y(1-\theta)^{n-y}\\
+&=\frac{\Gamma(n+2)}{\Gamma(y+1)\Gamma(n-y+1)}\theta^{(y+1)-1}(1-\theta)^{(n-y+1)-1}\\
+&=\mathrm{beta}(y+1, n-y+1)
+\end{align}
+$$
+
+---
+
+幸福度データの例では$Y=y=118, n-y=11$なので、
+
+事後分布は$p(\theta|y_1,\dots,y_{129})=\mathrm{beta}(119,12)$となる
+
+
+
+## ベータ事前分布のもとでの事後推測
+
+$a=1,b=1$をもつベータ分布($\mathrm{beta}(1,1)$)も一様分布とみなすことができる
+$$
+p(\theta)=\frac{\Gamma(2)}{\Gamma(1)+\Gamma(1)}\theta^{1-1}(1-\theta)^{1-1}=\frac{1}{1\times1}1\times1=1
+$$
+
+- 補足
+  - $\Gamma(x+1)=x!$
+  - $\Gamma(1)=1$
+
+---
+
+
+任意のパラメータをもつベータ分布$\mathrm{beta}(a,b)$の時には
+$$
+\begin{align}
+p(\theta|y)&=\frac{p(y|\theta)p(\theta)}{p(y)}\\
+&=\frac{1}{p(y)}\times\frac{\Gamma(a+b)}{\Gamma(a)\Gamma(b)}\theta^{a-1}(1-\theta)^{b-1}\times\binom{n}{y}\theta^y(1-\theta)^{n-y}\\
+&=c(n,y,a,b)\times\theta^{a+y-1}(1-\theta)^{b+n-y-1}\\
+&=\mathrm{dbeta}(\theta,a+y,b+n-y)
+\end{align}
+$$
+
+- 標本モデルに二項分布
+- 事前分布にベータ分布
+- →事後分布は、事前分布と標本モデルのパラメータを足したベータ分布
+
+## 共役性
+
+- ベータ事前分布と二項モデルによりベータ事後分布が得られる
+  - ベータ事前分布のクラスは二項モデルに対して**共役(conjugate)**である
+
+
+##### 定義4(共役性)
+
+$\theta$に対する事前分布のクラス$\mathcal{P}$が標本モデル$p(y|\theta)$に対して共役であるとは
+$$
+p(\theta)\in\mathcal{P}\Rightarrow p(\theta|y)\in  \mathcal{P}
+$$
+
+- 共役事前分布は事後計算を容易にする
+  - 実際に事前の情報を表していないケースもある
+
+
+
+## 情報の統合
+
+- $\theta|\{Y=y\}\sim\mathrm{beta}(a+y,b+n-1)$
+  - $\mathrm{E}[\theta|y]=\frac{a+y}{a+b+n}$
+
+事後期待値に着目すると
+$$
+\begin{align}
+\mathrm{E}[\theta|y]&=\frac{a+y}{a+b+n}\\
+&=\frac{a+b}{a+b+n}\frac{a}{a+b}+\frac{n}{a+b+n}\frac{y}{n}\\
+&=\frac{a+b}{a+b+n}\times 事前期待値+\frac{n}{a+b+n}\times 標本平均
+\end{align}
+$$
+
+- 事後期待値は、事前期待値と標本平均の加重平均
+  - サンプルサイズ>事前のサンプルサイズ、事後分布$\theta$は、データの影響を受ける
+
+
+## サンプルサイズと事前分布を変えた事後分布
+
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0),oma=c(0,0,.5,0))
+par(mfrow=c(2,2))
+theta<-seq(0,1,length=100)
+a<-1; b<-1
+n<-5 ; y<-1
+plot(theta,dbeta(theta,a+y,b+n-y),type="l",ylab=
+       expression(paste(italic("p("),theta,"|y)",sep="")), 
+     xlab=expression(theta), lwd=2)
+mtext(expression(paste("beta(1,1) prior,  ", italic("n"),"=5  ",
+                       italic(sum(y[i])),"=1",sep="")), side=3,line=.1)
+lines(theta,dbeta(theta,a,b),type="l",col="gray",lwd=2)
+legend(.45,2.4,legend=c("prior","posterior"),lwd=c(2,2),
+       col=c("gray","black"), bty="n")
+
+a<-3; b<-2
+n<-5 ; y<-1
+plot(theta,dbeta(theta,a+y,b+n-y),type="l",ylab=
+       expression(paste(italic("p("),theta,"|y)",sep="")), xlab=expression(theta), 
+     lwd=2)
+mtext(expression(paste("beta(3,2) prior,  ", italic("n"),"=5  ",italic(sum(y[i])),"=1",sep="")), side=3,line=.1)
+lines(theta,dbeta(theta,a,b),type="l",col="gray",lwd=2)
+
+a<-1 ; b<-1
+n<-100; y<-20
+plot(theta,dbeta(theta,a+y,b+n-y),type="l",ylab=
+       expression(paste(italic("p("),theta,"|y)",sep="")), xlab=expression(theta), 
+     lwd=2)
+mtext(expression(paste("beta(1,1) prior,  ", italic("n"),"=100  ",
+                       italic(sum(y[i])),"=20",sep="")), side=3,line=.1)
+lines(theta,dbeta(theta,a,b),type="l",col="gray",lwd=2)
+
+a<-3 ; b<-2
+n<-100; y<-20
+plot(theta,dbeta(theta,a+y,b+n-y),type="l",ylab=
+       expression(paste(italic("p("),theta,"|y)",sep="")), 
+     xlab=expression(theta),lwd=2)
+mtext(expression(paste("beta(3,2) prior,  ", italic("n"),"=100  ",
+                       italic(sum(y[i])),"=20",sep="")), side=3,line=.1)
+lines(theta,dbeta(theta,a,b),type="l",col="gray",lwd=2)
+
+```
+
+
+## 予測
+
+- ベイズ推測の特徴として、新たなデータに対する予測分布が挙げられる
+- 二値データの場合
+  - $n$個の二値確率変数の実現値 : $y_1,\dots,y_n$
+  - 同じ母集団からのまだ観測していない確率変数 : $\tilde{Y}$
+- $\tilde{Y}$の**予測分布(predictive distribution)**は、データが与えられた元での$\tilde{Y}$の条件付き分布
+
+## 二値確率変数における$\tilde{Y}$の条件付き分布
+
+$$
+\begin{align}
+\mathrm{Pr}(\tilde{Y}=1|y_1,\dots,y_n)&=\int \mathrm{Pr}(\tilde{Y}=1,\theta|y_1,\dots,y_n)d\theta\\
+&=\int \mathrm{Pr}(\tilde{Y}=1|\theta,y_1,\dots,y_n)p(\theta|y_1,\dots,y_n)d\theta\\
+&=\int\theta (\theta|y_1,\dots,y_n)d\theta\\
+&=\mathrm{E}[\theta|y_1,\dots,y_n]=\frac{a+\sum_{i=1}^n y_i}{a+b+n}\\
+\end{align}
+$$
+
+1. 予測分布は未知の量に依存しない
+2. 予測分布は観測データに依存する
+   - 「データ→事後分布→予測分布」と影響を与える
+
+# 3.1.2 信用領域
+
+## 3.1.2 信用領域
+
+- パラメータの真の値を含む可能性が高いパラメータ空間の領域を特定したい
+
+### 定義5 ベイズ信用区間(ベイズ確信区間)
+
+観測データ$Y=y$に基づく、区間$[l(y),u(y)]$が、$\theta$に対する95%**信用区間(credible interval)**であるとは
+$$
+\mathrm{Pr}(l(y)<\theta<u(y)|Y=y)=0.95
+$$
+が成り立つことを言う
+
+- これは、$Y=y$を観測した後、$\theta$の真の値がどの位置にあるかという情報を表す区間
+- データが観測される「前に」区間が真の値を被覆する確率を説明するような被覆確率の頻度的解釈とは異なる
+
+## 3.1.2 信用領域
+
+### 定義6 頻度論的な信頼区間
+
+ランダムな区間$[l(y),u(y)]$が、$\theta$に対する95%**信頼区間(confidence interval)**であるとは、データが得られる前に
+$$
+\mathrm{Pr}(l(Y)<\theta<u(Y)|\theta)=0.95
+$$
+が成り立つことを言う
+
+データ$Y=y$を観測して、このデータを信頼区間の式に代入すると
+$$
+\mathrm{Pr}(l(y)<\theta<u(y)|\theta)=
+\left\{
+\begin{array}{ll}
+0 & (\theta\notin[l(y),u(u)]のとき) \\
+1 & (\theta\in[l(y),u(u)]のとき)
+\end{array}
+\right.
+$$
+
+## 信頼区間と信用区間
+
+- (データ観測後の)信頼区間は、その区間に真の値が含まれるか否かを返す(?)
+- 信用区間は、データのもとで$\theta$の真の値を含む可能性が高い95%の区間を返す
+
+⇨頻度論的信頼区間ではデータ観測後の解釈がベイズより乏しい
+
+##### tips
+
+- 95%ベイズ信用区間は、近似的に95%頻度論的な信頼区間と同じ被覆確率をもつことが示唆されている(p.48参照)
+
+
+## 分位点に基づく区間
+
+- 信用区間を構成する最も簡単な方法は事後分布の分位点を用いる方法
+- 分位点に基づく$100(1-\alpha)$％信用区間を構成するには、次を満たす$\theta_{\alpha/2}<\theta_{1-\alpha/2}$の値を求めれば良い
+
+
+
+1. $\mathrm{Pr}(\theta< \theta_{\alpha/2}|Y=y)=\alpha/2$
+2. $\mathrm{Pr}(\theta> \theta_{1-\alpha/2}|Y=y)=\alpha/2$
+
+ここで、$\theta_{\alpha/2},\theta_{1-\alpha/2}$はそれぞれ$\theta$の$\alpha/2,1-\alpha/2$事後分位点である
+
+よって、それらの事後分位点に含まれない領域が$100(1-\alpha)$％信用区間となる
+
+## 幸福データにおける信用領域
+
+- n=10の条件付き独立な二値確率変数から、y=2を観測した
+- 事前分布は一様分布とする
+- 事後分布は$\theta|\{Y=2\}\sim\mathrm{beta}(1+2,1+8)$になる
+- このベータ分布の0.025および、0.975分位点から95%事後信用区間を構成できる
+- これらの分位点は0.06,0.52
+  - $\theta\in[0.06,0.52]$の事後確率は95%である
+
+
+
+## 信用領域でいいの？
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+
+a<-1  ; b<-1   #prior
+n<-10 ; y<-2   #data
+theta.support<-seq(0,1,length=100)
+plot(theta.support, dbeta(theta.support, a+y, b+n-y), type="l",
+     xlab=expression(theta),ylab=expression(paste(italic("p("),theta,"|y)"))) 
+abline(v=qbeta( c(.025,.975), a+y,b+n-y))
+```
+
+
+- 95%信用区間を見ると、区間の外側に、区間の内側よりも事後確率が高い点が存在する
+- より制約のある区間の存在を示唆
+
+## 最高事後密度(Highest Posterior Density, HPD)領域
+
+### 定義7 最高事後密度(HPD)領域
+
+$100(1-\alpha)$％HPD領域は次を満たすパラメータ空間の部分集合$s(y)\subset\Theta$で構成される
+
+1. $\mathrm{Pr}(\theta\in s(y)|Y=y)=1-\alpha$
+2. $\theta_a\in s(y)\mathrm{かつ}\theta_b\notin s(y)\mathrm{ならば、}p(\theta_a|Y=y)>p(\theta_b|Y=y)$
+
+## 最高事後密度(HPD)領域の直感的理解
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+
+theta.support<-seq(0,1,length=5000)
+plot(theta.support, dbeta(theta.support, a+y, b+n-y), type="l",
+     xlab=expression(theta),ylab=expression(paste(italic("p("),theta,"|y)"))) 
+pth<-dbeta(theta.support, a+y, b+n-y)
+pth<-pth
+ord<- order(-pth)
+xpx<-cbind(theta.support[ord], pth[ord])
+xpx<-cbind(xpx,cumsum(xpx[,2])/sum(xpx[,2]))
+
+hpd<-function(x,dx,p){
+  md<-x[dx==max(dx)]
+  px<-dx/sum(dx)
+  pxs<--sort(-px)
+  ct<-min(pxs[cumsum(pxs)< p])
+  list(hpdr=range(x[px>=ct]),mode=md) }
+
+tmp<-hpd(xpx[,1],xpx[,2],.5)$hpdr
+lines( x=c(tmp[1],tmp[1],tmp[2],tmp[2]),
+       y=dbeta(c(0,tmp[1],tmp[2],0),a+y,b+n-y)  ,col=gray(.75),lwd=2   )
+tmp<-hpd(xpx[,1],xpx[,2],.75)$hpdr
+lines( x=c(tmp[1],tmp[1],tmp[2],tmp[2]),
+       y=dbeta(c(0,tmp[1],tmp[2],0),a+y,b+n-y)  ,col=gray(.5),lwd=2   )
+tmp<-hpd(xpx[,1],xpx[,2],.95)$hpdr
+lines( x=c(tmp[1],tmp[1],tmp[2],tmp[2]),
+       y=dbeta(c(0,tmp[1],tmp[2],0),a+y,b+n-y)  ,col=gray(0),lwd=2   )
+
+tmp<-qbeta( c(.025,.975), a+y,b+n-y)
+lines( x=c(tmp[1],tmp[1],tmp[2],tmp[2]),
+       y=dbeta(c(0,tmp[1],tmp[2],0),a+y,b+n-y)  ,col=gray(0),lwd=2 ,lty=2  )
+
+
+legend(.5, 2.75, c("50% HPD","75% HPD","95% HPD","95% quantile-based"), 
+       col=c(gray(.75),gray(.5),
+             gray(0),gray(0)),lty=c(1,1,1,2),lwd=c(2,2,2,2),
+       bty="n")
+```
+
+
+- 基本的な考え方は、水平線を下げていき、領域内の事後確率が($1-\alpha$)に到達したら、停止
+- HPD領域内のすべての点は、領域外の点よりも事後密度が高くなる
+- 事後密度が多峰型ならば、HPD領域が区間でないこともある
+
+# 3.2 ポアソンモデル
+
+## 3.2 ポアソンモデル
+
+- カウントデータの標本空間は$\mathcal{Y}=\{0,1,2,\dots\}$
+- $Y$の最も単純な確率モデルはポアソンモデルである
+
+### ポアソンモデル
+
+確率変数$Y$が平均$\theta$のポアソン分布に従う(第2章参照)
+$$
+\mathrm{Pr}(Y=y|\theta)=\mathrm{dpois}(y,\theta)=\theta^ye^{-\theta}/y!\ \ (y\in\{0,1,2,\dots\})
+$$
+
+- $\mathrm{E}[Y|\theta]=\theta$
+- $\mathrm{Var}[Y|\theta]=\theta$
+
+ポアソン分布の平均が大きい場合、その分散も大きくなる
+
+(平均分散関係(mean-variance relationship))
+
+
+## 3.2.1 事後推測
+
+標本モデル: $Y_1,\dots,Y_n$の平均$\theta$のポアソン分布からの独立同一標本
+
+$$
+\begin{align}
+\mathrm{Pr}(Y_1=y_1,\dots,Y_n=y_n|\theta)&=\prod_{i=1}^np(y|\theta)\\
+&=\prod_{i=1}^n\frac{1}{y_i!}\theta^{y_i}e^{-\theta}\\
+&=c(y_1,\dots,y_n)\times\theta^{\sum y_i}e^{-n\theta}\\
+\end{align}
+$$
+
+- $\sum_{i=1}^nY_i$は$\theta$に関する情報をすべて保持している(**十分統計量**)
+
+## 共役事前分布
+
+ポアソンモデルに対して、事後分布は以下
+$$
+\begin{align}
+p(\theta|y)&\propto p(\theta)\times p(y|\theta)\\
+&\propto p(\theta)\times \theta^{\sum y_i}e^{-n\theta}
+\end{align}
+$$
+
+- 事前分布に$\theta^{c_i}e^{-c_2\theta}$の項が含まれていると、標本モデルに対して共役な事前分布になる
+- 上記の項を含んでいる確率分布として、ガンマ分布族が知られている
+
+
+
+## ガンマ分布
+
+$$
+p(\theta)\equiv \mathrm{dgamma}(\theta,a,b)=\frac{b^a}{\Gamma(a)}\theta^{a-1}e^{-b\theta}\ \ (\theta,a,b>0)
+$$
+
+- $\theta^{c_i}e^{-c_2\theta}$が含まれている(嬉しい)
+  - $\mathrm{E}[Y|\theta]=a/b$
+  - $\mathrm{Var}[Y|\theta]=a/b^2$
+  - $\mathrm{mode}[Y|\theta]=\left\{\begin{array}{ll}(a-1)/b & (a>1) \\0 & (a\leq1)\end{array}\right.$
+
+## $\theta$の事後分布
+
+- $Y_1,\dots,Y_n|\theta\sim \mathrm{i.i.d. Poisson}(\theta)$
+- $p(\theta)=\mathrm{dgamma}(\theta,a,b)$
+
+
+$$
+\begin{align}
+p(\theta|y)&= p(\theta)\times p(y|\theta)/p(y)\\
+&= \left\{\theta^{a-1}e^{-b\theta}\right\}\times  \left\{\theta^{\sum y_i}e^{-n\theta}\right\}\times c(y,a,b)\\
+&= \left\{\theta^{a+\sum y_i-1}e^{-(b+n)\theta}\right\}\times c(y,a,b)
+\end{align}
+$$
+
+
+- 共役じゃん
+
+## $\theta$の事後期待値
+
+- $\theta$の事後期待値は、事前期待値と標本期待値の凸結合(加重平均)
+
+$$
+\mathrm{E}[Y|\theta]=\frac{a+\sum y_i}{b+n}\\
+=\frac{b}{b+n}\frac{a}{b}+\frac{n}{b+n}\frac{\sum y_i}{n}
+$$
+
+- $b$: 事前サンプルサイズ
+- $a$: $b$個の事前の観測値の和
+
+
+
+## 事後予測分布
+
+追加のデータに関する予測は、事後予測分布を用いて行う
+$$
+\begin{align}
+p(\tilde{y}|y)&=\int^\inf_0p(\tilde{y}|\theta,y)p(\theta|y)d\theta\\
+&=\int\mathrm{dpois}(\tilde{y},\theta)\mathrm{dgamma}(\theta, a+\sum y_i, b+n)d\theta\\
+&=\int\left\{\frac{1}{\tilde{y}!}\theta^{\tilde{y}}e^{-\theta}\right\}
+\left\{  \frac{(b+n)^{a+\sum y_i}}{\Gamma(a+\sum y_i)}\theta^{a+\sum y_i-1}e^{-(b+n)\theta} \right\}d\theta\\
+&=\left\{\frac{(b+n)^{a+\sum y_i}}{\Gamma(\tilde{y}+1)\Gamma(a+\sum y_i)}\right\}\int^{\inf}_0
+\theta^{a+\sum y_i+\tilde{y}-1}e^{-(b+n+1)\theta}d\theta
+\end{align}
+$$
+
+---
+
+最後の式の右辺第二項は、ガンマ密度なので
+$$
+1=\int^{\inf}_0\frac{b^a}{\Gamma(a)}\theta^{a-1}e^{-b\theta}d\theta\ (a,b>0)\\
+\int^{\inf}_0\theta^{a-1}e^{-b\theta}d\theta=\frac{\Gamma(a)}{b^a}\ (a,b>0)
+$$
+
+
+---
+
+この性質を使うと、事後予測分布は
+$$
+\begin{align}
+p(\tilde{y}|y)&=\left\{\frac{(b+n)^{a+\sum y_i}}{\Gamma(\tilde{y}+1)\Gamma(a+\sum y_i)}\right\}
+\times\left\{\frac{\Gamma(a+\sum y_i+\tilde{y})}{(b+n+1)^{a+\sum y_i+\tilde{y}}}\right\}\\
+&=\frac{\Gamma(a+\sum y_i+\tilde{y})}{\Gamma(\tilde{y}+1)\Gamma(a+\sum y_i)} 
+\left(\frac{b+n}{b+n+1}\right)^{a+\sum y_i}
+\left(\frac{1}{b+n+1}\right)^{\tilde{y}}
+\end{align}
+$$
+これは、パラメータ($a+\sum y_i, b+n$)を持つ**負の二項分布**
+
+
+
+## 3.2.2 例：出生率
+
+- 1990年代に、調査参加時40歳だった155人の女性の学歴と子供の数に関するデータ
+  - 学士号を持たない女性の子供の数: $Y_{1,1},\dots,Y_{n_1,1}$
+  - 学士号を持つ女性の子供の数: $Y_{1,1},\dots,Y_{n_2,2}$
+
+$$
+Y_{1,1},\dots,Y_{n_1,1}|\theta_1\sim\mathrm{i.i.d. Poisson}(\theta_1)\\
+Y_{1,2},\dots,Y_{n_2,2}|\theta_2\sim\mathrm{i.i.d. Poisson}(\theta_2)
+$$
+
+
+## ベイズ推測
+
+- データの経験分布
+  - 学士号を持たない : $n_1=111, \sum_{i=1}^{n_1}Y_{i,1}=217,\bar{Y_1}=1.95$
+  - 学士号をもつ : $n_2=44, \sum_{i=1}^{n_2}Y_{i,2}=66,\bar{Y_2}=1.50$
+
+事前分布が$\{\theta_1,\theta_2\}\sim\mathrm{i.i.d. gamma}(2,1)$の場合、次の事後分布を得る
+$$
+\theta_1|\{n_1=111,\sum Y_{i,1}=217\sim\mathrm{gamma}(2+217, 1+111)=\mathrm{gamma}(219,112)\\
+\theta_2|\{n_2=44,\sum Y_{i,1}=66\sim\mathrm{gamma}(2+66, 1+44)=\mathrm{gamma}(68,45)
+$$
+
+---
+
+::: {.panel-tabset}
+
+### データの分布
+
+```{r}
+y2<-gss$CHILDS[gss$FEMALE==1 &  gss$YEAR>=1990  & gss$AGE==40 & gss$DEG>=3 ]
+y1<-gss$CHILDS[gss$FEMALE==1 &  gss$YEAR>=1990  & gss$AGE==40 & gss$DEG<3 ]
+
+y2<-y2[!is.na(y2)]
+y1<-y1[!is.na(y1)]
+```
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+par(mfrow=c(1,2))
+
+set.seed(1) 
+n1<-length(y1) ; n2<-length(y2)
+s1<-sum(y1)
+s2<-sum(y2)
+
+par(mfrow=c(1,2),mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+plot(table(y1), type="h",xlab=expression(italic(y)),ylab=expression(italic(n[1](y))),col=gray(.5) ,lwd=3)
+mtext("Less than bachelor's",side=3)
+plot(table(y2), type="h",xlab=expression(italic(y)),ylab=expression(italic(n[2](y))),col=gray(0),lwd=3)
+mtext("Bachelor's or higher",side=3,lwd=3)
+```
+
+
+### 事後推測
+
+
+```{r}
+#| echo: true
+a<-2 ; b<-1
+n1<-length(y1) ; s1<-sum(y1)
+n2<-length(y2) ; s2<-sum(y2)
+
+
+a<-2 ; b<-1          # 事前分布パラメータ
+n1<-111 ; s1<-217    # 学士号なし出生データ
+n2<-44  ; s2<-66     # 学士号あり出生データ
+
+
+(a+s1)/(b+n1)        # 事後平均 
+(a+s1-1)/(b+n1)      # 事後最頻値
+qgamma( c(.025,.975),a+s1,b+n1)   # 95%信用区間
+
+(a+s2)/(b+n2)
+(a+s2-1)/(b+n2)
+qgamma( c(.025,.975),a+s2,b+n2)
+```
+
+:::
+
+
+## 事後分布のパラメータ比較
+::: {.panel-tabset}
+
+### 解釈
+
+- 二つの母平均の事後密度は、実質的に$\theta_1>\theta_2$
+  - $\mathrm{Pr}(\theta_1>\theta_2|\sum Y_{i,1}=217,\sum Y_{i,2}=66)=0.97$
+<br>
+- しかし、事後予測(分布)では、学士号を持たない母親の子供の数の方が、学士号を持つ母親の子供の数より大きい確率はチャンスレベル以下
+  - $\mathrm{Pr}(\tilde{Y_1}>\tilde{Y_2}|\sum Y_{i,1}=217,\sum Y_{i,2}=66)=0.48$
+<br>  
+- 二つの母集団に差があるからといって、その差が大きいとは限らない
+  - 二つの分布の重なりが小さければ、母平均差は大きくなるが、事象間の差が大きくなるとは限らない
+
+### 分布
+
+```{r}
+#| fig-align: center
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+par(mfrow=c(1,2))
+a<-2
+b<-1
+xtheta<-seq(0,5,length=1000)
+plot(xtheta,dgamma(xtheta,a+s1,b+n1),type="l",col=gray(.5),xlab=expression(theta),
+     ylab=expression(paste(italic("p("),theta,"|",y[1],"...",y[n],")",sep="")))
+lines(xtheta,dgamma(xtheta,a+s2,b+n2),col=gray(0),lwd=2)
+lines(xtheta,dgamma(xtheta,a,b),type="l",lty=2,lwd=2)
+abline(h=0,col="black")
+
+y<-(0:12)
+plot(y-.1, dnbinom(y, size=(a+s1), mu=(a+s1)/(b+n1)) , col=gray(.5) ,type="h",
+     ylab=expression(paste(italic("p("),y[n+1],"|",y[1],"...",y[n],")",sep="")), 
+     xlab=expression(italic(y[n+1])),ylim=c(0,.35),lwd=3)
+points(y+.1, dnbinom(y, size=(a+s2), mu=(a+s2)/(b+n2)) , col=gray(0) ,type="h",lwd=3)
+legend(1,.375,legend=c("Less than bachelor's","Bachelor's or higher"),bty="n",
+       lwd=c(3,3),col=c(gray(.5),gray(0)))
+```
+
+:::
+
+# 3.3 指数型分布族と共役事前分布
+
+## 3.3 指数型分布族と共役事前分布
+
+- 二項モデルとポアソンモデルは、どちらも**一次元指数型分布族(exponential family of distribution)**
+  - 密度が$p(y|\phi)=h(y)c(\phi)e^{\phi t(y)}$
+    - $\phi$ : 未知パラメータ
+    - $t(y)$ : 十分統計量
+- 指数型分布族に対する共役事前分布は$p(\phi|n_0,t_0)=\kappa(n_0,t_0)c(\phi)^{n_0}e^{n_0t_0\phi}$で与えられる(Deacons & Ylvisaker, 1979)
+
+---
+
+これらの標本モデルと共役事前分布を組み合わせたときの事後分布は
+$$
+\begin{align}
+p(\phi|y_1,\dots,y_n)&\propto p(\phi)p(y_1,\dots,y_n|\phi)\\
+&\propto c(\phi)^{n_0+n}\mathrm{exp}\left\{ \phi\times \left[n_0t_0+\sum_{i=1}^nt(y_i)\right]  \right\}\\
+&\propto p(\phi|n_0+n, n_0t_0+n\bar{t}/(n_0+n))
+\end{align}
+$$
+
+- 要するに、未知パラメータ$\phi$の事後分布は、事前情報と観測した標本の組み合わせで決まる
+  - $n_0$ : 事前サンプルサイズ(事前分布がどれくらいの情報を持っているかの尺度)
+  - $t_0$ : 事前推定値 ($t(Y)$の事前期待
+
+
+# Enjoy {{< fa thumbs-up >}} {{< fa thumbs-up >}} {{< fa thumbs-up >}} 

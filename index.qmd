@@ -2,4 +2,5 @@
 title: "Slides"
 ---
 
+- [標準ベイズ統計学 -3. 二項モデルとポアソンモデル- ](./bayes_stats_ch3/index.html)
 - [標準ベイズ統計学 -9. 線形回帰-(ベイズ塾合宿2022夏) ](./bayesjuku_2022summer/index.html)
