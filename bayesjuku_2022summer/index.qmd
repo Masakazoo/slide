@@ -1331,5 +1331,7 @@ plot(y.te,y.te.bma,xlab=expression(italic(y)[test]),
 - $\mathrm{Pr}(z_j=1|\boldsymbol{y,X})=\sum z_l^{(s)}/S$だと全ての説明変数で事後確率は1/2未満
 - 変数減少法より、本来ない効果あると見積もることはない(らしい)
 
-# おしまい
+# Enjoy {{< fa thumbs-up >}} {{< fa thumbs-up >}} {{< fa thumbs-up >}} 
+
+
 

@@ -347,5 +347,6 @@ plot(apply(Z,2,mean,na.rm=TRUE),xlab="regressor index",ylab=expression(
 plot(y.te,y.te.bma,xlab=expression(italic(y)[test]),
      ylab=expression(hat(italic(y))[test])) ; abline(0,1)
 
+mat <- matrix(c(1,2,3,4),ncol = 2,byrow = T)
 
 
